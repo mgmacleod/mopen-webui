@@ -13,9 +13,11 @@ services:
       - NODE_ENV=development
       - PYTHONPATH=/workspace/backend
       - OLLAMA_BASE_URL=http://192.168.0.110:11434
+      - CORS_ORIGINS=http://localhost:5173
     ports:
       - '5173:5173' # Frontend dev server
-      - '8282:8080' # Backend server
+      - '8080:8080' # Backend server
+    user: 'node'
     command: sleep infinity
 
   # ollama:

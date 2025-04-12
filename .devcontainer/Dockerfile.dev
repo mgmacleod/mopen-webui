@@ -16,11 +16,13 @@ RUN apt-get update && apt-get install -y \
 ENV NODE_ENV=development
 ENV PATH="/home/node/.local/bin:${PATH}"
 
-# Create workspace directory
+# Create workspace directory and set permissions
 WORKDIR /workspace
+RUN chown -R node:node /workspace
 
 # Create and activate Python virtual environment
-RUN python3 -m venv /workspace/backend/.venv
+RUN python3 -m venv /workspace/backend/.venv && \
+    chown -R node:node /workspace/backend/.venv
 ENV PATH="/workspace/backend/.venv/bin:${PATH}"
 
 # Install Python development tools in the virtual environment
@@ -29,6 +31,9 @@ RUN pip install --no-cache-dir \
     black \
     pylint \
     mypy
+
+# Switch to node user
+USER node
 
 # Default command (can be overridden by docker-compose)
 CMD ["sleep", "infinity"] 

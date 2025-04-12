@@ -24,6 +24,6 @@
 			}
 		}
 	},
-	"forwardPorts": [5173, 8282],
+	"forwardPorts": [5173, 8080],
 	"postCreateCommand": "npm install && cd backend && pip install -r requirements.txt"
 }
