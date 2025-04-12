@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile.dev
+    volumes:
+      - ..:/workspace:cached
+      - node_modules:/workspace/node_modules:cached
+      - python_packages:/workspace/backend/.venv:cached
+    environment:
+      - NODE_ENV=development
+      - PYTHONPATH=/workspace/backend
+      - OLLAMA_BASE_URL=http://192.168.0.110:11434
+    ports:
+      - '5173:5173' # Frontend dev server
+      - '8282:8080' # Backend server
+    command: sleep infinity
+
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #   ports:
+  #     - "11434:11434"
+
+volumes:
+  node_modules:
+  python_packages:
+  # ollama_data:
