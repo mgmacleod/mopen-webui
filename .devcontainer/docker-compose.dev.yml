@@ -7,27 +7,18 @@ services:
       dockerfile: .devcontainer/Dockerfile.dev
     volumes:
       - ..:/workspace:cached
-      - node_modules:/workspace/node_modules:cached
-      - python_packages:/workspace/backend/.venv:cached
+      # Use anonymous volumes to prevent permission issues
+      - /workspace/node_modules
+      - /workspace/backend/.venv
     environment:
       - NODE_ENV=development
       - PYTHONPATH=/workspace/backend
       - OLLAMA_BASE_URL=http://192.168.0.110:11434
-      - CORS_ORIGINS=http://localhost:5173
+      - CORS_ALLOW_ORIGIN=http://localhost:5173
     ports:
       - '5173:5173' # Frontend dev server
       - '8080:8080' # Backend server
     user: 'node'
     command: sleep infinity
 
-  # ollama:
-  #   image: ollama/ollama:latest
-  #   volumes:
-  #     - ollama_data:/root/.ollama
-  #   ports:
-  #     - "11434:11434"
-
-volumes:
-  node_modules:
-  python_packages:
-  # ollama_data:
+# No need for named volumes now that we're using anonymous volumes

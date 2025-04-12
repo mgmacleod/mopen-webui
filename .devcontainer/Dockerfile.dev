@@ -10,7 +10,12 @@ RUN apt-get update && apt-get install -y \
     jq \
     gcc \
     python3-dev \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
+
+# Give node user sudo permissions
+RUN echo "node ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/node && \
+    chmod 0440 /etc/sudoers.d/node
 
 # Set up Node.js environment
 ENV NODE_ENV=development
@@ -18,10 +23,12 @@ ENV PATH="/home/node/.local/bin:${PATH}"
 
 # Create workspace directory and set permissions
 WORKDIR /workspace
-RUN chown -R node:node /workspace
+RUN mkdir -p /workspace/backend && \
+    chown -R node:node /workspace
 
 # Create and activate Python virtual environment
-RUN python3 -m venv /workspace/backend/.venv && \
+RUN mkdir -p /workspace/backend/.venv && \
+    python3 -m venv /workspace/backend/.venv && \
     chown -R node:node /workspace/backend/.venv
 ENV PATH="/workspace/backend/.venv/bin:${PATH}"
 

@@ -25,5 +25,5 @@
 		}
 	},
 	"forwardPorts": [5173, 8080],
-	"postCreateCommand": "npm install && cd backend && pip install -r requirements.txt"
+	"postCreateCommand": "sudo chown -R node:node /workspace/node_modules /workspace/backend/.venv && npm install && cd backend && pip install -r requirements.txt"
 }
