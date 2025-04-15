@@ -237,10 +237,49 @@ export const getOllamaModels = async (token: string = '', urlIdx: null | number 
 	}
 
 	return (res?.models ?? [])
-		.map((model) => ({ id: model.model, name: model.name ?? model.model, ...model }))
-		.sort((a, b) => {
+		.map((model: { model: string; name?: string }) => ({
+			id: model.model,
+			name: model.name ?? model.model,
+			...model
+		}))
+		.sort((a: { name: string }, b: { name: string }) => {
 			return a.name.localeCompare(b.name);
 		});
+};
+
+export const getOllamaModelInfo = async (token: string = '', modelName: string) => {
+	let error = null;
+
+	const res = await fetch(`${OLLAMA_API_BASE_URL}/api/show`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			...(token && { authorization: `Bearer ${token}` })
+		},
+		body: JSON.stringify({
+			name: modelName
+		})
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			console.log(err);
+			if ('detail' in err) {
+				error = err.detail;
+			} else {
+				error = 'Server connection failed';
+			}
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
 };
 
 export const generatePrompt = async (token: string = '', model: string, conversation: string) => {
@@ -336,7 +375,7 @@ export const generateTextCompletion = async (token: string = '', model: string, 
 };
 
 export const generateChatCompletion = async (token: string = '', body: object) => {
-	let controller = new AbortController();
+	const controller = new AbortController();
 	let error = null;
 
 	const res = await fetch(`${OLLAMA_API_BASE_URL}/api/chat`, {

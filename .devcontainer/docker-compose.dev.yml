@@ -15,10 +15,10 @@ services:
       - PYTHONPATH=/workspace/backend
       - OLLAMA_BASE_URL=http://192.168.0.110:11434
       - CORS_ALLOW_ORIGIN=http://localhost:5173
+      - ENV=dev
     ports:
       - '5173:5173' # Frontend dev server
       - '8080:8080' # Backend server
     user: 'node'
     command: sleep infinity
-
 # No need for named volumes now that we're using anonymous volumes

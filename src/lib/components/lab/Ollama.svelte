@@ -6,17 +6,19 @@
 	import { models } from '$lib/stores';
 	import { splitStream } from '$lib/utils';
 	import { getModels } from '$lib/apis';
-	import { createModel, getOllamaModels } from '$lib/apis/ollama';
+	import { createModel, getOllamaModels, getOllamaModelInfo } from '$lib/apis/ollama';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
+	import ModelSelector from '$lib/components/chat/ModelSelector.svelte';
 
 	let loading = true;
 	let ollamaModels = [];
-	let selectedModel = null;
-	let modelfile = '';
+	let selectedModelId = '';
+	let selectedModelInfo = null;
 	let newModelName = '';
 	let newModelFile = '';
 	let creatingModel = false;
+	let selectedModels = ['']; // For the ModelSelector component
 
 	onMount(async () => {
 		await fetchModels();
@@ -28,6 +30,15 @@
 			const result = await getOllamaModels(localStorage.token);
 			if (result && result.models) {
 				ollamaModels = result.models;
+				// Update the models store with Ollama models
+				models.set(
+					ollamaModels.map((model) => ({
+						id: model.model,
+						name: model.name,
+						owned_by: 'ollama',
+						...model
+					}))
+				);
 			}
 		} catch (error) {
 			toast.error(`Failed to fetch models: ${error}`);
@@ -35,20 +46,32 @@
 		loading = false;
 	};
 
-	const selectModel = async (model) => {
-		selectedModel = model;
-		// In a real implementation, we would fetch the modelfile content
-		// For now, just create a placeholder
-		modelfile = `FROM ${model.model}
-TEMPLATE """{{ .System }}
-USER: {{ .Prompt }}
-ASSISTANT: """
-PARAMETER temperature 0.7
-PARAMETER top_k 50
-PARAMETER top_p 0.95
-PARAMETER stop "</s>"
-PARAMETER stop "USER:"
-PARAMETER stop "ASSISTANT:"`;
+	// Watch for changes to selectedModels[0] and update selectedModelId
+	$: if (selectedModels[0] !== selectedModelId) {
+		selectedModelId = selectedModels[0];
+		if (selectedModelId) {
+			selectModel(selectedModelId);
+		} else {
+			selectedModelInfo = null;
+		}
+	}
+
+	const selectModel = async (modelId) => {
+		if (!modelId) return;
+
+		try {
+			const info = await getOllamaModelInfo(localStorage.token, modelId);
+			console.log('Model info:', info); // Debug log
+			selectedModelInfo = {
+				system: info.system || '',
+				template: info.template || '',
+				parameters: info.parameters || '',
+				modelfile: info.modelfile || ''
+			};
+		} catch (error) {
+			toast.error(`Failed to fetch model info: ${error}`);
+			selectedModelInfo = null;
+		}
 	};
 
 	const createNewModel = async () => {
@@ -126,45 +149,140 @@ PARAMETER stop "ASSISTANT:"`;
 </script>
 
 <div class="flex h-full w-full">
-	<!-- Left Panel - Model List -->
+	<!-- Left Panel - Model Selection and Details -->
 	<div class="w-1/3 border-r border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden">
+		<!-- Model Selector -->
 		<div class="p-4 border-b border-gray-200 dark:border-gray-800">
-			<h2 class="text-lg font-medium text-gray-800 dark:text-gray-200">
-				{$i18n.t('Available Models')}
-			</h2>
+			<ModelSelector bind:selectedModels showSetDefault={false} />
 		</div>
 
+		<!-- Model Details -->
 		<div class="flex-1 overflow-y-auto p-4">
 			{#if loading}
 				<div class="flex items-center justify-center h-full">
 					<Spinner size="lg" />
 				</div>
-			{:else if ollamaModels.length === 0}
+			{:else if !selectedModelId}
 				<div class="text-center text-gray-500 dark:text-gray-400 py-8">
-					{$i18n.t('No models found')}
+					{$i18n.t('Select a model to view details')}
+				</div>
+			{:else if selectedModelInfo}
+				<div class="space-y-4">
+					<!-- Model Name -->
+					<div>
+						<label
+							for="model-name"
+							class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1"
+						>
+							{$i18n.t('Model Name')}
+						</label>
+						<input
+							id="model-name"
+							type="text"
+							readonly
+							value={selectedModelId}
+							class="w-full text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg"
+						/>
+					</div>
+
+					<!-- System Prompt -->
+					{#if selectedModelInfo.system}
+						<div>
+							<label
+								for="system-prompt"
+								class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1"
+							>
+								{$i18n.t('System Prompt')}
+							</label>
+							<textarea
+								id="system-prompt"
+								readonly
+								rows="3"
+								value={selectedModelInfo.system}
+								class="w-full text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg"
+							></textarea>
+						</div>
+					{/if}
+
+					<!-- Template -->
+					{#if selectedModelInfo.template}
+						<div>
+							<label
+								for="template"
+								class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1"
+							>
+								{$i18n.t('Template')}
+							</label>
+							<textarea
+								id="template"
+								readonly
+								rows="3"
+								value={selectedModelInfo.template}
+								class="w-full text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg"
+							></textarea>
+						</div>
+					{/if}
+
+					<!-- Parameters -->
+					{#if selectedModelInfo.parameters}
+						<div>
+							<label
+								for="parameters"
+								class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1"
+							>
+								{$i18n.t('Parameters')}
+							</label>
+							<textarea
+								id="parameters"
+								readonly
+								rows="3"
+								value={selectedModelInfo.parameters}
+								class="w-full text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg"
+							></textarea>
+						</div>
+					{/if}
+
+					<!-- License -->
+					{#if selectedModelInfo.license}
+						<div>
+							<label
+								for="license"
+								class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1"
+							>
+								{$i18n.t('License')}
+							</label>
+							<textarea
+								id="license"
+								readonly
+								rows="3"
+								value={selectedModelInfo.license}
+								class="w-full text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg"
+							></textarea>
+						</div>
+					{/if}
+
+					<!-- Modelfile -->
+					{#if selectedModelInfo.modelfile}
+						<div>
+							<label
+								for="modelfile"
+								class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1"
+							>
+								{$i18n.t('Modelfile')}
+							</label>
+							<textarea
+								id="modelfile"
+								readonly
+								rows="3"
+								value={selectedModelInfo.modelfile}
+								class="w-full text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg"
+							></textarea>
+						</div>
+					{/if}
 				</div>
 			{:else}
-				<div class="space-y-2">
-					{#each ollamaModels as model}
-						<button
-							class="w-full p-3 text-left rounded-lg {selectedModel?.model === model.model
-								? 'bg-primary/10 border border-primary/30'
-								: 'bg-gray-50 dark:bg-gray-900 hover:bg-gray-100 dark:hover:bg-gray-800'}"
-							on:click={() => selectModel(model)}
-						>
-							<div class="font-medium text-gray-800 dark:text-gray-200">
-								{model.name}
-							</div>
-							<div class="text-sm text-gray-500 dark:text-gray-400">
-								{model.model}
-							</div>
-							{#if model.size}
-								<div class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-									{Math.round(model.size / (1024 * 1024))} MB
-								</div>
-							{/if}
-						</button>
-					{/each}
+				<div class="text-center text-gray-500 dark:text-gray-400 py-8">
+					{$i18n.t('Failed to load model details')}
 				</div>
 			{/if}
 		</div>
@@ -174,69 +292,50 @@ PARAMETER stop "ASSISTANT:"`;
 	<div class="w-2/3 flex flex-col overflow-hidden">
 		<div class="p-4 border-b border-gray-200 dark:border-gray-800">
 			<h2 class="text-lg font-medium text-gray-800 dark:text-gray-200">
-				{selectedModel
-					? $i18n.t('Editing: {name}', { name: selectedModel.name })
+				{selectedModelId
+					? $i18n.t('Editing: {name}', { name: selectedModelId })
 					: $i18n.t('Create New Model')}
 			</h2>
 		</div>
 
 		<div class="flex-1 overflow-y-auto p-4">
-			{#if selectedModel}
+			{#if selectedModelId}
 				<!-- Model Details -->
 				<div class="mb-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
 					<div class="grid grid-cols-2 gap-2 text-sm">
 						<div>
 							<span class="text-gray-500 dark:text-gray-400">{$i18n.t('Model ID')}:</span>
-							<span class="text-gray-800 dark:text-gray-200">{selectedModel.model}</span>
+							<span class="text-gray-800 dark:text-gray-200">{selectedModelId}</span>
 						</div>
-						{#if selectedModel.modified_at}
-							<div>
-								<span class="text-gray-500 dark:text-gray-400">{$i18n.t('Modified')}:</span>
-								<span class="text-gray-800 dark:text-gray-200">
-									{new Date(selectedModel.modified_at).toLocaleString()}
-								</span>
-							</div>
-						{/if}
-						{#if selectedModel.size}
-							<div>
-								<span class="text-gray-500 dark:text-gray-400">{$i18n.t('Size')}:</span>
-								<span class="text-gray-800 dark:text-gray-200">
-									{Math.round(selectedModel.size / (1024 * 1024))} MB
-								</span>
-							</div>
-						{/if}
-						{#if selectedModel.format}
-							<div>
-								<span class="text-gray-500 dark:text-gray-400">{$i18n.t('Format')}:</span>
-								<span class="text-gray-800 dark:text-gray-200">{selectedModel.format}</span>
-							</div>
-						{/if}
 					</div>
 				</div>
 
 				<!-- Modelfile Editor -->
-				<div class="mb-4">
-					<label
-						for="modelfile-edit"
-						class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-					>
-						{$i18n.t('Modelfile')}
-					</label>
-					<textarea
-						id="modelfile-edit"
-						class="w-full h-96 p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 font-mono text-sm outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-						bind:value={modelfile}
-						placeholder={$i18n.t('Enter modelfile content')}
-					></textarea>
-				</div>
+				{#if selectedModelInfo?.modelfile}
+					<div class="mb-4">
+						<label
+							for="modelfile-edit"
+							class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+						>
+							{$i18n.t('Modelfile')}
+						</label>
+						<textarea
+							id="modelfile-edit"
+							readonly
+							rows="3"
+							value={selectedModelInfo.modelfile}
+							class="w-full text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg"
+						></textarea>
+					</div>
+				{/if}
 
 				<!-- Action Buttons -->
 				<div class="flex justify-end space-x-3">
 					<button
 						class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 rounded-lg text-sm"
 						on:click={() => {
-							selectedModel = null;
-							modelfile = '';
+							selectedModelId = '';
+							selectedModels = [''];
 						}}
 					>
 						{$i18n.t('Cancel')}
@@ -244,9 +343,12 @@ PARAMETER stop "ASSISTANT:"`;
 					<button
 						class="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm"
 						on:click={() => {
-							newModelName = `${selectedModel.name}-custom`;
-							newModelFile = modelfile;
-							selectedModel = null;
+							if (selectedModelInfo?.modelfile) {
+								newModelName = `${selectedModelId}-custom`;
+								newModelFile = selectedModelInfo.modelfile;
+							}
+							selectedModelId = '';
+							selectedModels = [''];
 						}}
 					>
 						{$i18n.t('Use as Template')}
