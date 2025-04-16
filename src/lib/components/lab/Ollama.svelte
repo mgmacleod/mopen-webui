@@ -11,14 +11,55 @@
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import ModelSelector from '$lib/components/chat/ModelSelector.svelte';
 
+	// Model creation form state
+	type Parameter = {
+		name: string;
+		value: string;
+		type: 'int' | 'float' | 'string';
+	};
+
+	type Message = {
+		role: 'system' | 'user' | 'assistant' | 'control';
+		content: string;
+	};
+
 	let loading = true;
 	let ollamaModels = [];
 	let selectedModelId = '';
 	let selectedModelInfo = null;
-	let newModelName = '';
-	let newModelFile = '';
-	let creatingModel = false;
 	let selectedModels = ['']; // For the ModelSelector component
+	let creatingModel = false;
+
+	// New structured model creation state
+	let newModel = {
+		name: '',
+		from: '',
+		template: '',
+		system: '',
+		parameters: [] as Parameter[],
+		messages: [] as Message[]
+	};
+
+	// Helper function to parse parameters string into structured format
+	const parseParameters = (paramsStr: string): Parameter[] => {
+		if (!paramsStr) return [];
+		const params: Parameter[] = [];
+		const lines = paramsStr.split('\n');
+
+		for (const line of lines) {
+			const [name, value] = line.split('=').map((s) => s.trim());
+			if (!name || !value) continue;
+
+			// Try to infer type
+			let type: 'int' | 'float' | 'string' = 'string';
+			if (/^\d+$/.test(value)) type = 'int';
+			else if (/^\d*\.\d+$/.test(value)) type = 'float';
+
+			params.push({ name, value, type });
+		}
+
+		return params;
+	};
 
 	onMount(async () => {
 		await fetchModels();
@@ -75,22 +116,41 @@
 	};
 
 	const createNewModel = async () => {
-		if (!newModelName) {
+		if (!newModel.name) {
 			toast.error($i18n.t('Model name is required'));
 			return;
 		}
 
-		if (!newModelFile) {
-			toast.error($i18n.t('Modelfile content is required'));
+		if (!newModel.from) {
+			toast.error($i18n.t('Base model is required'));
 			return;
 		}
 
 		creatingModel = true;
 		try {
-			const res = await createModel(localStorage.token, {
-				name: newModelName,
-				modelfile: newModelFile
-			});
+			// Convert parameters to the expected format
+			const parameters = newModel.parameters.reduce((acc, param) => {
+				let value: string | number = param.value;
+				if (param.type === 'int') value = parseInt(param.value);
+				if (param.type === 'float') value = parseFloat(param.value);
+				acc[param.name] = value;
+				return acc;
+			}, {});
+
+			const modelData = {
+				model: newModel.name,
+				stream: false,
+				from: newModel.from,
+				template: newModel.template || undefined,
+				system: newModel.system || undefined,
+				parameters: Object.keys(parameters).length > 0 ? parameters : undefined,
+				messages: newModel.messages.length > 0 ? newModel.messages : undefined
+			};
+
+			// Log the request for debugging
+			console.log('Creating model with data:', modelData);
+
+			const res = await createModel(localStorage.token, modelData);
 
 			if (res && res.ok) {
 				const reader = res.body
@@ -136,8 +196,14 @@
 				await models.set(await getModels(localStorage.token));
 
 				// Clear form
-				newModelName = '';
-				newModelFile = '';
+				newModel = {
+					name: '',
+					from: '',
+					template: '',
+					system: '',
+					parameters: [],
+					messages: []
+				};
 
 				toast.success($i18n.t('Model created successfully'));
 			}
@@ -145,6 +211,36 @@
 			toast.error(`Failed to create model: ${error}`);
 		}
 		creatingModel = false;
+	};
+
+	// Helper functions for parameters and messages
+	const addParameter = () => {
+		newModel.parameters = [...newModel.parameters, { name: '', value: '', type: 'string' }];
+	};
+
+	const removeParameter = (index: number) => {
+		newModel.parameters = newModel.parameters.filter((_, i) => i !== index);
+	};
+
+	const addMessage = () => {
+		newModel.messages = [...newModel.messages, { role: 'system', content: '' }];
+	};
+
+	const removeMessage = (index: number) => {
+		newModel.messages = newModel.messages.filter((_, i) => i !== index);
+	};
+
+	// Function to use selected model as template
+	const useSelectedAsTemplate = () => {
+		if (!selectedModelInfo) return;
+
+		newModel.name = `${selectedModelId}-custom`;
+		newModel.from = selectedModelId;
+		newModel.template = selectedModelInfo.template || '';
+		newModel.system = selectedModelInfo.system || '';
+		newModel.parameters = parseParameters(selectedModelInfo.parameters);
+		// We don't copy messages as they're typically not part of the model definition
+		newModel.messages = [];
 	};
 </script>
 
@@ -292,132 +388,226 @@
 	<div class="w-2/3 flex flex-col overflow-hidden">
 		<div class="p-4 border-b border-gray-200 dark:border-gray-800">
 			<h2 class="text-lg font-medium text-gray-800 dark:text-gray-200">
-				{selectedModelId
-					? $i18n.t('Editing: {name}', { name: selectedModelId })
-					: $i18n.t('Create New Model')}
+				{$i18n.t('Create New Model')}
 			</h2>
 		</div>
 
 		<div class="flex-1 overflow-y-auto p-4">
-			{#if selectedModelId}
-				<!-- Model Details -->
-				<div class="mb-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
-					<div class="grid grid-cols-2 gap-2 text-sm">
-						<div>
-							<span class="text-gray-500 dark:text-gray-400">{$i18n.t('Model ID')}:</span>
-							<span class="text-gray-800 dark:text-gray-200">{selectedModelId}</span>
-						</div>
-					</div>
+			<!-- New Model Form -->
+			<div class="space-y-4">
+				<!-- Model Name -->
+				<div>
+					<label
+						for="new-model-name"
+						class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+					>
+						{$i18n.t('Model Name')}
+					</label>
+					<input
+						id="new-model-name"
+						type="text"
+						class="w-full p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+						bind:value={newModel.name}
+						placeholder={$i18n.t('e.g. my-custom-model')}
+						disabled={creatingModel}
+					/>
 				</div>
 
-				<!-- Modelfile Editor -->
-				{#if selectedModelInfo?.modelfile}
-					<div class="mb-4">
+				<!-- Base Model -->
+				<div>
+					<label
+						for="base-model"
+						class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+					>
+						{$i18n.t('Base Model (FROM)')}
+					</label>
+					<input
+						id="base-model"
+						type="text"
+						class="w-full p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+						bind:value={newModel.from}
+						placeholder={$i18n.t('e.g. llama2 or mistral')}
+						disabled={creatingModel}
+					/>
+				</div>
+
+				<!-- Template -->
+				<div>
+					<label
+						for="template"
+						class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+					>
+						{$i18n.t('Template')}
+					</label>
+					<textarea
+						id="template"
+						class="w-full h-24 p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 font-mono text-sm outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+						bind:value={newModel.template}
+						placeholder={$i18n.t('Enter prompt template')}
+						disabled={creatingModel}
+					></textarea>
+				</div>
+
+				<!-- System Prompt -->
+				<div>
+					<label
+						for="system"
+						class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+					>
+						{$i18n.t('System Prompt')}
+					</label>
+					<textarea
+						id="system"
+						class="w-full h-24 p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 font-mono text-sm outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+						bind:value={newModel.system}
+						placeholder={$i18n.t('Enter system prompt')}
+						disabled={creatingModel}
+					></textarea>
+				</div>
+
+				<!-- Parameters -->
+				<div>
+					<div class="flex justify-between items-center mb-1">
 						<label
-							for="modelfile-edit"
-							class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+							for="parameters-section"
+							class="text-sm font-medium text-gray-700 dark:text-gray-300"
 						>
-							{$i18n.t('Modelfile')}
+							{$i18n.t('Parameters')}
 						</label>
-						<textarea
-							id="modelfile-edit"
-							readonly
-							rows="3"
-							value={selectedModelInfo.modelfile}
-							class="w-full text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg"
-						></textarea>
+						<button
+							id="parameters-section"
+							class="text-sm text-primary hover:text-primary-dark"
+							on:click={addParameter}
+							disabled={creatingModel}
+						>
+							+ {$i18n.t('Add Parameter')}
+						</button>
 					</div>
-				{/if}
+					{#each newModel.parameters as param, i}
+						<div class="flex gap-2 mb-2">
+							<input
+								type="text"
+								id="param-name-{i}"
+								class="flex-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-sm"
+								bind:value={param.name}
+								placeholder={$i18n.t('Name')}
+								disabled={creatingModel}
+								aria-label={$i18n.t('Parameter Name')}
+							/>
+							<input
+								type="text"
+								id="param-value-{i}"
+								class="flex-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-sm"
+								bind:value={param.value}
+								placeholder={$i18n.t('Value')}
+								disabled={creatingModel}
+								aria-label={$i18n.t('Parameter Value')}
+							/>
+							<select
+								id="param-type-{i}"
+								class="w-24 p-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-sm"
+								bind:value={param.type}
+								disabled={creatingModel}
+								aria-label={$i18n.t('Parameter Type')}
+							>
+								<option value="string">string</option>
+								<option value="int">int</option>
+								<option value="float">float</option>
+							</select>
+							<button
+								class="p-2 text-red-500 hover:text-red-600"
+								on:click={() => removeParameter(i)}
+								disabled={creatingModel}
+								aria-label={$i18n.t('Remove Parameter')}
+							>
+								×
+							</button>
+						</div>
+					{/each}
+				</div>
+
+				<!-- Messages -->
+				<div>
+					<div class="flex justify-between items-center mb-1">
+						<label
+							for="messages-section"
+							class="text-sm font-medium text-gray-700 dark:text-gray-300"
+						>
+							{$i18n.t('Messages')}
+						</label>
+						<button
+							id="messages-section"
+							class="text-sm text-primary hover:text-primary-dark"
+							on:click={addMessage}
+							disabled={creatingModel}
+						>
+							+ {$i18n.t('Add Message')}
+						</button>
+					</div>
+					{#each newModel.messages as message, i}
+						<div class="flex flex-col gap-2 mb-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg">
+							<div class="flex gap-2 items-center">
+								<select
+									id="message-role-{i}"
+									class="w-32 p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-800 text-sm"
+									bind:value={message.role}
+									disabled={creatingModel}
+									aria-label={$i18n.t('Message Role')}
+								>
+									<option value="system">system</option>
+									<option value="user">user</option>
+									<option value="assistant">assistant</option>
+									<option value="control">control</option>
+								</select>
+								<button
+									class="p-2 text-red-500 hover:text-red-600"
+									on:click={() => removeMessage(i)}
+									disabled={creatingModel}
+									aria-label={$i18n.t('Remove Message')}
+								>
+									×
+								</button>
+							</div>
+							<textarea
+								id="message-content-{i}"
+								class="w-full p-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-800 text-sm"
+								bind:value={message.content}
+								rows="2"
+								placeholder={$i18n.t('Message content')}
+								disabled={creatingModel}
+								aria-label={$i18n.t('Message Content')}
+							></textarea>
+						</div>
+					{/each}
+				</div>
 
 				<!-- Action Buttons -->
 				<div class="flex justify-end space-x-3">
-					<button
-						class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 rounded-lg text-sm"
-						on:click={() => {
-							selectedModelId = '';
-							selectedModels = [''];
-						}}
-					>
-						{$i18n.t('Cancel')}
-					</button>
-					<button
-						class="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm"
-						on:click={() => {
-							if (selectedModelInfo?.modelfile) {
-								newModelName = `${selectedModelId}-custom`;
-								newModelFile = selectedModelInfo.modelfile;
-							}
-							selectedModelId = '';
-							selectedModels = [''];
-						}}
-					>
-						{$i18n.t('Use as Template')}
-					</button>
-					<button
-						class="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm"
-						on:click={() => {
-							// Here we would save the model
-							toast.info($i18n.t('Saving model... (not implemented)'));
-						}}
-					>
-						{$i18n.t('Save Changes')}
-					</button>
-				</div>
-			{:else}
-				<!-- New Model Form -->
-				<div class="space-y-4">
-					<div>
-						<label
-							for="new-model-name"
-							class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-						>
-							{$i18n.t('Model Name')}
-						</label>
-						<input
-							id="new-model-name"
-							type="text"
-							class="w-full p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-							bind:value={newModelName}
-							placeholder={$i18n.t('e.g. my-custom-model')}
-							disabled={creatingModel}
-						/>
-					</div>
-
-					<div>
-						<label
-							for="new-model-file"
-							class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-						>
-							{$i18n.t('Modelfile Content')}
-						</label>
-						<textarea
-							id="new-model-file"
-							class="w-full h-96 p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 font-mono text-sm outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-							bind:value={newModelFile}
-							placeholder={$i18n.t('Enter modelfile content (e.g. FROM llama3:latest...)')}
-							disabled={creatingModel}
-						></textarea>
-					</div>
-
-					<!-- Action Buttons -->
-					<div class="flex justify-end">
+					{#if selectedModelInfo?.modelfile}
 						<button
-							class="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-							on:click={createNewModel}
+							class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 rounded-lg text-sm"
+							on:click={useSelectedAsTemplate}
 							disabled={creatingModel}
 						>
-							{#if creatingModel}
-								<div class="flex items-center">
-									<Spinner size="sm" class="mr-2" />
-									{$i18n.t('Creating...')}
-								</div>
-							{:else}
-								{$i18n.t('Create Model')}
-							{/if}
+							{$i18n.t('Use Selected as Template')}
 						</button>
-					</div>
+					{/if}
+					<button
+						class="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+						on:click={createNewModel}
+						disabled={creatingModel}
+					>
+						{#if creatingModel}
+							<div class="flex items-center">
+								<Spinner size="sm" class="mr-2" />
+								{$i18n.t('Creating...')}
+							</div>
+						{:else}
+							{$i18n.t('Create Model')}
+						{/if}
+					</button>
 				</div>
-			{/if}
+			</div>
 		</div>
 	</div>
 </div>
