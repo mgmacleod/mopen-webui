@@ -107,7 +107,9 @@
 				system: info.system || '',
 				template: info.template || '',
 				parameters: info.parameters || '',
-				modelfile: info.modelfile || ''
+				model_info: info.model_info || {},
+				capabilities: info.capabilities || [],
+				details: info.details || {}
 			};
 		} catch (error) {
 			toast.error(`Failed to fetch model info: ${error}`);
@@ -246,7 +248,7 @@
 
 <div class="flex h-full w-full">
 	<!-- Left Panel - Model Selection and Details -->
-	<div class="w-1/3 border-r border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden">
+	<div class="w-1/2 border-r border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden">
 		<!-- Model Selector -->
 		<div class="p-4 border-b border-gray-200 dark:border-gray-800">
 			<ModelSelector bind:selectedModels showSetDefault={false} />
@@ -312,7 +314,7 @@
 							<textarea
 								id="template"
 								readonly
-								rows="3"
+								rows="8"
 								value={selectedModelInfo.template}
 								class="w-full text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg"
 							></textarea>
@@ -338,6 +340,154 @@
 						</div>
 					{/if}
 
+					<!-- Model Info -->
+					{#if Object.keys(selectedModelInfo.model_info).length > 0}
+						<div>
+							<label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+								{$i18n.t('Model Information')}
+							</label>
+							<div class="space-y-4">
+								<!-- General Info -->
+								<div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+									<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+										General
+									</div>
+									<div class="grid grid-cols-2 gap-2 text-sm">
+										{#if selectedModelInfo.model_info['general.architecture']}
+											<div class="col-span-2">
+												<span class="text-gray-500 dark:text-gray-400">Architecture:</span>
+												<span class="ml-2 font-mono"
+													>{selectedModelInfo.model_info['general.architecture']}</span
+												>
+											</div>
+										{/if}
+										{#if selectedModelInfo.model_info['general.size_label']}
+											<div>
+												<span class="text-gray-500 dark:text-gray-400">Size:</span>
+												<span class="ml-2 font-mono"
+													>{selectedModelInfo.model_info['general.size_label']}</span
+												>
+											</div>
+										{/if}
+										{#if selectedModelInfo.model_info['general.parameter_count']}
+											<div>
+												<span class="text-gray-500 dark:text-gray-400">Parameters:</span>
+												<span class="ml-2 font-mono"
+													>{(selectedModelInfo.model_info['general.parameter_count'] / 1e9).toFixed(
+														1
+													)}B</span
+												>
+											</div>
+										{/if}
+										{#if selectedModelInfo.details?.quantization_level}
+											<div>
+												<span class="text-gray-500 dark:text-gray-400">Q Level:</span>
+												<span class="ml-2 font-mono"
+													>{selectedModelInfo.details.quantization_level}</span
+												>
+											</div>
+										{/if}
+									</div>
+								</div>
+
+								<!-- Model Details -->
+								{#if selectedModelInfo.model_info[`${selectedModelInfo.model_info['general.architecture']}.context_length`]}
+									<div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+											Model Details
+										</div>
+										<div class="grid grid-cols-2 gap-2 text-sm">
+											<div>
+												<span class="text-gray-500 dark:text-gray-400">Context Length:</span>
+												<span class="ml-2 font-mono">
+													{selectedModelInfo.model_info[
+														`${selectedModelInfo.model_info['general.architecture']}.context_length`
+													].toLocaleString()}
+												</span>
+											</div>
+											{#if selectedModelInfo.model_info[`${selectedModelInfo.model_info['general.architecture']}.attention.head_count`]}
+												<div>
+													<span class="text-gray-500 dark:text-gray-400">Attention Heads:</span>
+													<span class="ml-2 font-mono">
+														{selectedModelInfo.model_info[
+															`${selectedModelInfo.model_info['general.architecture']}.attention.head_count`
+														]}
+													</span>
+												</div>
+											{/if}
+											{#if selectedModelInfo.model_info[`${selectedModelInfo.model_info['general.architecture']}.block_count`]}
+												<div>
+													<span class="text-gray-500 dark:text-gray-400">Block Count:</span>
+													<span class="ml-2 font-mono">
+														{selectedModelInfo.model_info[
+															`${selectedModelInfo.model_info['general.architecture']}.block_count`
+														]}
+													</span>
+												</div>
+											{/if}
+										</div>
+									</div>
+								{/if}
+
+								<!-- Base Model -->
+								{#if selectedModelInfo.model_info['general.base_model.0.name']}
+									<div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+											Base Model
+										</div>
+										<div class="space-y-1 text-sm">
+											<div>
+												<span class="text-gray-500 dark:text-gray-400">Name:</span>
+												<span class="ml-2"
+													>{selectedModelInfo.model_info['general.base_model.0.name']}</span
+												>
+											</div>
+											{#if selectedModelInfo.model_info['general.base_model.0.organization']}
+												<div>
+													<span class="text-gray-500 dark:text-gray-400">Organization:</span>
+													<span class="ml-2"
+														>{selectedModelInfo.model_info[
+															'general.base_model.0.organization'
+														]}</span
+													>
+												</div>
+											{/if}
+											{#if selectedModelInfo.model_info['general.base_model.0.repo_url']}
+												<div>
+													<span class="text-gray-500 dark:text-gray-400">Repository:</span>
+													<a
+														href={selectedModelInfo.model_info['general.base_model.0.repo_url']}
+														target="_blank"
+														rel="noopener noreferrer"
+														class="ml-2 text-primary hover:text-primary-dark"
+													>
+														{selectedModelInfo.model_info['general.base_model.0.repo_url']}
+													</a>
+												</div>
+											{/if}
+										</div>
+									</div>
+								{/if}
+							</div>
+						</div>
+					{/if}
+
+					<!-- Capabilities -->
+					{#if selectedModelInfo.capabilities && selectedModelInfo.capabilities.length > 0}
+						<div>
+							<label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+								{$i18n.t('Capabilities')}
+							</label>
+							<div class="flex flex-wrap gap-2">
+								{#each selectedModelInfo.capabilities as capability}
+									<span class="px-2 py-1 text-xs font-medium bg-primary/10 text-primary rounded">
+										{capability}
+									</span>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
 					<!-- License -->
 					{#if selectedModelInfo.license}
 						<div>
@@ -356,25 +506,6 @@
 							></textarea>
 						</div>
 					{/if}
-
-					<!-- Modelfile -->
-					{#if selectedModelInfo.modelfile}
-						<div>
-							<label
-								for="modelfile"
-								class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1"
-							>
-								{$i18n.t('Modelfile')}
-							</label>
-							<textarea
-								id="modelfile"
-								readonly
-								rows="3"
-								value={selectedModelInfo.modelfile}
-								class="w-full text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg"
-							></textarea>
-						</div>
-					{/if}
 				</div>
 			{:else}
 				<div class="text-center text-gray-500 dark:text-gray-400 py-8">
@@ -385,7 +516,7 @@
 	</div>
 
 	<!-- Right Panel - Model Editor -->
-	<div class="w-2/3 flex flex-col overflow-hidden">
+	<div class="w-1/2 flex flex-col overflow-hidden">
 		<div class="p-4 border-b border-gray-200 dark:border-gray-800">
 			<h2 class="text-lg font-medium text-gray-800 dark:text-gray-200">
 				{$i18n.t('Create New Model')}
@@ -441,7 +572,7 @@
 					</label>
 					<textarea
 						id="template"
-						class="w-full h-24 p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 font-mono text-sm outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+						class="w-full h-48 p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 font-mono text-sm outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
 						bind:value={newModel.template}
 						placeholder={$i18n.t('Enter prompt template')}
 						disabled={creatingModel}
@@ -458,7 +589,7 @@
 					</label>
 					<textarea
 						id="system"
-						class="w-full h-24 p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 font-mono text-sm outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+						class="w-full h-48 p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 font-mono text-sm outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
 						bind:value={newModel.system}
 						placeholder={$i18n.t('Enter system prompt')}
 						disabled={creatingModel}
