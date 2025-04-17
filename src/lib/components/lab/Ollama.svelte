@@ -133,7 +133,19 @@
 		const lines = paramsStr.split('\n');
 
 		for (const line of lines) {
-			const [name, value] = line.split('=').map((s) => s.trim());
+			// Skip empty lines
+			if (!line.trim()) continue;
+
+			// Split by whitespace and filter out empty strings
+			const parts = line.split(/\s+/).filter(Boolean);
+			if (parts.length < 2) continue;
+
+			const name = parts[0];
+			// Join remaining parts and trim whitespace and quotes
+			const rawValue = parts.slice(1).join(' ').trim();
+			// Remove surrounding quotes if present
+			const value = rawValue.replace(/^["'](.*)["']$/, '$1');
+
 			if (!name || !value) continue;
 
 			// Try to infer type
@@ -141,7 +153,20 @@
 			if (/^\d+$/.test(value)) type = 'int';
 			else if (/^\d*\.\d+$/.test(value)) type = 'float';
 
-			params.push({ name, value, type });
+			// For 'stop' parameter, always create a new entry
+			// For other parameters, update existing or create new
+			if (name === 'stop') {
+				params.push({ name, value, type });
+			} else {
+				const existingParam = params.find((p) => p.name === name);
+				if (existingParam) {
+					// For non-stop parameters, update the existing value
+					// This shouldn't happen in practice but keeping it for safety
+					existingParam.value = value;
+				} else {
+					params.push({ name, value, type });
+				}
+			}
 		}
 
 		return params;
@@ -188,15 +213,17 @@
 
 		try {
 			const info = await getOllamaModelInfo(localStorage.token, modelId);
-			console.log('Model info:', info); // Debug log
+			console.log('Raw model info from API:', info); // Debug log
 			selectedModelInfo = {
 				system: info.system || '',
 				template: info.template || '',
 				parameters: info.parameters || '',
 				model_info: info.model_info || {},
 				capabilities: info.capabilities || [],
-				details: info.details || {}
+				details: info.details || {},
+				modified_at: info.modified_at || null
 			};
+			console.log('Processed model info:', selectedModelInfo); // Debug log
 		} catch (error) {
 			toast.error(`Failed to fetch model info: ${error}`);
 			selectedModelInfo = null;
@@ -221,7 +248,17 @@
 				let value: string | number = param.value;
 				if (param.type === 'int') value = parseInt(param.value);
 				if (param.type === 'float') value = parseFloat(param.value);
-				acc[param.name] = value;
+
+				// Special handling for 'stop' parameter to allow multiple values
+				if (param.name === 'stop') {
+					if (!acc[param.name]) {
+						acc[param.name] = [value];
+					} else if (Array.isArray(acc[param.name])) {
+						acc[param.name].push(value);
+					}
+				} else {
+					acc[param.name] = value;
+				}
 				return acc;
 			}, {});
 
@@ -367,12 +404,47 @@
 	const loadSelectedModelDetails = () => {
 		if (!selectedModelInfo) return;
 
+		console.log('Loading model details. Selected model info:', selectedModelInfo);
+
 		newModel.name = selectedModelId;
 		newModel.from = selectedModelInfo.details?.parent_model || '';
 		newModel.template = selectedModelInfo.template || '';
 		newModel.system = selectedModelInfo.system || '';
-		// Reset other fields
-		newModel.parameters = [];
+
+		// Convert and validate parameters
+		console.log('Raw parameters string:', selectedModelInfo.parameters);
+		const parsedParams = parseParameters(selectedModelInfo.parameters);
+		console.log('Parsed parameters:', parsedParams);
+
+		newModel.parameters = parsedParams
+			.filter((param) => {
+				const isValid = OLLAMA_PARAMETERS.some((p) => p.name === param.name);
+				if (!isValid) {
+					console.log('Filtering out unknown parameter:', param);
+				}
+				return isValid;
+			})
+			.map((param) => {
+				const paramDef = OLLAMA_PARAMETERS.find((p) => p.name === param.name);
+				console.log('Processing parameter:', param, 'Definition:', paramDef);
+
+				// Convert value to the correct type
+				let value = param.value;
+				if (paramDef?.type === 'int') {
+					value = parseInt(param.value).toString();
+				} else if (paramDef?.type === 'float') {
+					value = parseFloat(param.value).toString();
+				}
+				return {
+					name: param.name,
+					value,
+					type: paramDef?.type || 'string'
+				};
+			});
+
+		console.log('Final converted parameters:', newModel.parameters);
+
+		// Reset messages since they're not part of the model definition
 		newModel.messages = [];
 	};
 
