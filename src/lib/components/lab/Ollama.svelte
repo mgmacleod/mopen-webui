@@ -363,6 +363,19 @@
 		newModel.messages = [];
 	};
 
+	// Function to load selected model details into the form
+	const loadSelectedModelDetails = () => {
+		if (!selectedModelInfo) return;
+
+		newModel.name = selectedModelId;
+		newModel.from = selectedModelInfo.details?.parent_model || '';
+		newModel.template = selectedModelInfo.template || '';
+		newModel.system = selectedModelInfo.system || '';
+		// Reset other fields
+		newModel.parameters = [];
+		newModel.messages = [];
+	};
+
 	// Update the createAndLoadModel function to handle timing properly
 	const createAndLoadModel = async () => {
 		const modelName = newModel.name; // Store the name before creation
@@ -520,6 +533,22 @@
 												>
 											</div>
 										{/if}
+										{#if selectedModelInfo.model_info['general.basename']}
+											<div>
+												<span class="text-gray-500 dark:text-gray-400">Base Name:</span>
+												<span class="ml-2 font-mono"
+													>{selectedModelInfo.model_info['general.basename']}</span
+												>
+											</div>
+										{/if}
+										{#if selectedModelInfo.model_info['general.license']}
+											<div>
+												<span class="text-gray-500 dark:text-gray-400">License:</span>
+												<span class="ml-2 font-mono"
+													>{selectedModelInfo.model_info['general.license']}</span
+												>
+											</div>
+										{/if}
 									</div>
 								</div>
 
@@ -563,18 +592,26 @@
 								{/if}
 
 								<!-- Base Model -->
-								{#if selectedModelInfo.model_info['general.base_model.0.name']}
+								{#if selectedModelInfo.model_info['general.base_model.0.name'] || selectedModelInfo.details?.parent_model}
 									<div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
 										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
 											Base Model
 										</div>
 										<div class="space-y-1 text-sm">
-											<div>
-												<span class="text-gray-500 dark:text-gray-400">Name:</span>
-												<span class="ml-2"
-													>{selectedModelInfo.model_info['general.base_model.0.name']}</span
-												>
-											</div>
+											{#if selectedModelInfo.model_info['general.base_model.0.name']}
+												<div>
+													<span class="text-gray-500 dark:text-gray-400">Name:</span>
+													<span class="ml-2"
+														>{selectedModelInfo.model_info['general.base_model.0.name']}</span
+													>
+												</div>
+											{/if}
+											{#if selectedModelInfo.details?.parent_model}
+												<div>
+													<span class="text-gray-500 dark:text-gray-400">Parent Model:</span>
+													<span class="ml-2">{selectedModelInfo.details.parent_model}</span>
+												</div>
+											{/if}
 											{#if selectedModelInfo.model_info['general.base_model.0.organization']}
 												<div>
 													<span class="text-gray-500 dark:text-gray-400">Organization:</span>
@@ -637,6 +674,21 @@
 								value={selectedModelInfo.license}
 								class="w-full text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg"
 							></textarea>
+						</div>
+					{/if}
+
+					<!-- Modified At -->
+					{#if selectedModelInfo.modified_at}
+						<div>
+							<label
+								for="modified-at"
+								class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1"
+							>
+								{$i18n.t('Last Modified')}
+							</label>
+							<div class="text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg">
+								{new Date(selectedModelInfo.modified_at).toLocaleString()}
+							</div>
 						</div>
 					{/if}
 				</div>
@@ -847,14 +899,23 @@
 
 				<!-- Action Buttons -->
 				<div class="flex justify-end space-x-3">
-					{#if selectedModelInfo?.modelfile}
+					{#if selectedModelInfo}
 						<button
 							class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 rounded-lg text-sm"
-							on:click={useSelectedAsTemplate}
+							on:click={loadSelectedModelDetails}
 							disabled={creatingModel}
 						>
-							{$i18n.t('Use Selected as Template')}
+							{$i18n.t('Load Selected Model')}
 						</button>
+						{#if selectedModelInfo?.modelfile}
+							<button
+								class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 rounded-lg text-sm"
+								on:click={useSelectedAsTemplate}
+								disabled={creatingModel}
+							>
+								{$i18n.t('Use Selected as Template')}
+							</button>
+						{/if}
 					{/if}
 					<button
 						class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 rounded-lg text-sm"
