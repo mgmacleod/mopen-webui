@@ -10,6 +10,7 @@
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import ModelSelector from '$lib/components/chat/ModelSelector.svelte';
+	import QuickTestModal from '$lib/components/lab/QuickTestModal.svelte';
 
 	// Model creation form state
 	type Parameter = {
@@ -29,6 +30,7 @@
 	let selectedModelInfo = null;
 	let selectedModels = ['']; // For the ModelSelector component
 	let creatingModel = false;
+	let showQuickTest = false;
 
 	// New structured model creation state
 	let newModel = {
@@ -468,8 +470,36 @@
 	<!-- Left Panel - Model Selection and Details -->
 	<div class="w-1/2 border-r border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden">
 		<!-- Model Selector -->
-		<div class="p-4 border-b border-gray-200 dark:border-gray-800">
-			<ModelSelector bind:selectedModels showSetDefault={false} />
+		<div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-2">
+			<div class="flex-1">
+				<ModelSelector bind:selectedModels showSetDefault={false} />
+			</div>
+			{#if selectedModelId}
+				<button
+					class="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+					on:click={() => {
+						showQuickTest = true;
+					}}
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						viewBox="0 0 16 16"
+						fill="currentColor"
+						class="size-4"
+					>
+						<path
+							d="M8.5 1.75a.75.75 0 0 0-1 0L4 5.251V3.5a.75.75 0 0 0-1.5 0v3.5a.75.75 0 0 0 .75.75H6.5a.75.75 0 0 0 0-1.5H4.749L8 2.749l3.251 3.502H9.5a.75.75 0 0 0 0 1.5h3.25a.75.75 0 0 0 .75-.75V3.5a.75.75 0 0 0-1.5 0v1.751L8.5 1.75Z"
+						/>
+						<path
+							d="M12 8.5a.75.75 0 0 1 .75.75v1.751l3.5 3.502a.75.75 0 0 1-1 1.124L12 12.126V13.5a.75.75 0 0 1-1.5 0v-3.25a.75.75 0 0 1 .75-.75H12Z"
+						/>
+						<path
+							d="M4 8.5a.75.75 0 0 0-.75.75v3.25a.75.75 0 0 0 1.5 0v-1.374l3.25 3.501a.75.75 0 0 0 1-1.124l-3.5-3.502V9.25A.75.75 0 0 0 4.75 8.5H4Z"
+						/>
+					</svg>
+					Quick Test
+				</button>
+			{/if}
 		</div>
 
 		<!-- Model Details -->
@@ -1022,3 +1052,12 @@
 		</div>
 	</div>
 </div>
+
+<!-- Add the QuickTestModal component -->
+<QuickTestModal
+	bind:show={showQuickTest}
+	modelId={selectedModelId}
+	on:close={() => {
+		showQuickTest = false;
+	}}
+/>
