@@ -223,7 +223,8 @@
 				model_info: info.model_info || {},
 				capabilities: info.capabilities || [],
 				details: info.details || {},
-				modified_at: info.modified_at || null
+				modified_at: info.modified_at || null,
+				messages: info.messages || []
 			};
 			console.log('Processed model info:', selectedModelInfo); // Debug log
 		} catch (error) {
@@ -446,8 +447,9 @@
 
 		console.log('Final converted parameters:', newModel.parameters);
 
-		// Reset messages since they're not part of the model definition
-		newModel.messages = [];
+		// Copy messages from selected model
+		newModel.messages = selectedModelInfo.messages ? [...selectedModelInfo.messages] : [];
+		console.log('Copied messages:', newModel.messages);
 	};
 
 	// Update the createAndLoadModel function to handle timing properly
@@ -760,6 +762,27 @@
 						</div>
 					{/if}
 
+					<!-- Messages -->
+					{#if selectedModelInfo.messages && selectedModelInfo.messages.length > 0}
+						<div>
+							<h3 class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+								{$i18n.t('Messages')}
+							</h3>
+							<div class="space-y-2">
+								{#each selectedModelInfo.messages as message}
+									<div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
+										<div class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+											{message.role}
+										</div>
+										<div class="text-sm font-mono">
+											{message.content}
+										</div>
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
 					<!-- License -->
 					{#if selectedModelInfo.license}
 						<div>
@@ -1034,7 +1057,7 @@
 						{/if}
 					</button>
 					<button
-						class="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+						class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
 						on:click={createAndLoadModel}
 						disabled={creatingModel}
 					>
