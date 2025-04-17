@@ -40,6 +40,92 @@
 		messages: [] as Message[]
 	};
 
+	// Add the parameters constant at the top of the script section
+	const OLLAMA_PARAMETERS = [
+		{
+			name: 'mirostat',
+			description:
+				'Enable Mirostat sampling for controlling perplexity. (0 = disabled, 1 = Mirostat, 2 = Mirostat 2.0)',
+			type: 'int',
+			default: '0'
+		},
+		{
+			name: 'mirostat_eta',
+			description:
+				'Influences how quickly the algorithm responds to feedback. Lower value = slower adjustments.',
+			type: 'float',
+			default: '0.1'
+		},
+		{
+			name: 'mirostat_tau',
+			description:
+				'Controls balance between coherence and diversity. Lower value = more focused text.',
+			type: 'float',
+			default: '5.0'
+		},
+		{
+			name: 'num_ctx',
+			description: 'Sets the size of the context window used to generate the next token.',
+			type: 'int',
+			default: '2048'
+		},
+		{
+			name: 'repeat_last_n',
+			description:
+				'Sets how far back to look back to prevent repetition. (0 = disabled, -1 = num_ctx)',
+			type: 'int',
+			default: '64'
+		},
+		{
+			name: 'repeat_penalty',
+			description: 'Sets how strongly to penalize repetitions. Higher value = stronger penalty.',
+			type: 'float',
+			default: '1.1'
+		},
+		{
+			name: 'temperature',
+			description: 'The temperature of the model. Higher value = more creative responses.',
+			type: 'float',
+			default: '0.8'
+		},
+		{
+			name: 'seed',
+			description: 'Random number seed for generation. Same seed + prompt = same response.',
+			type: 'int',
+			default: '0'
+		},
+		{
+			name: 'stop',
+			description: 'Stop sequences to use. Model will stop generating when encountered.',
+			type: 'string',
+			default: ''
+		},
+		{
+			name: 'num_predict',
+			description: 'Maximum number of tokens to predict. (-1 = infinite generation)',
+			type: 'int',
+			default: '-1'
+		},
+		{
+			name: 'top_k',
+			description: 'Reduces probability of nonsense. Higher value = more diverse answers.',
+			type: 'int',
+			default: '40'
+		},
+		{
+			name: 'top_p',
+			description: 'Works with top-k. Higher value = more diverse text.',
+			type: 'float',
+			default: '0.9'
+		},
+		{
+			name: 'min_p',
+			description: 'Minimum probability for a token, relative to most likely token.',
+			type: 'float',
+			default: '0.0'
+		}
+	];
+
 	// Helper function to parse parameters string into structured format
 	const parseParameters = (paramsStr: string): Parameter[] => {
 		if (!paramsStr) return [];
@@ -120,12 +206,12 @@
 	const createNewModel = async () => {
 		if (!newModel.name) {
 			toast.error($i18n.t('Model name is required'));
-			return;
+			return false;
 		}
 
 		if (!newModel.from) {
 			toast.error($i18n.t('Base model is required'));
-			return;
+			return false;
 		}
 
 		creatingModel = true;
@@ -189,6 +275,8 @@
 						} catch (error) {
 							console.log(error);
 							toast.error(`${error}`);
+							creatingModel = false; // Reset on error
+							return false;
 						}
 					}
 				}
@@ -208,17 +296,47 @@
 				};
 
 				toast.success($i18n.t('Model created successfully'));
+				creatingModel = false; // Reset on success
+				return true;
 			}
 		} catch (error) {
 			toast.error(`Failed to create model: ${error}`);
+			creatingModel = false; // Reset on error
 		}
-		creatingModel = false;
+		creatingModel = false; // Reset in all cases
+		return false;
 	};
 
-	// Helper functions for parameters and messages
+	// Replace the addParameter function
 	const addParameter = () => {
-		newModel.parameters = [...newModel.parameters, { name: '', value: '', type: 'string' }];
+		if (!newModel.parameters) {
+			newModel.parameters = [];
+		}
+		newModel.parameters = [
+			...newModel.parameters,
+			{
+				name: '',
+				value: '',
+				type: 'string' // Default to string type
+			}
+		];
 	};
+
+	// Add a watch on param.name to update type when parameter is selected
+	$: {
+		newModel.parameters.forEach((param, index) => {
+			if (param.name) {
+				const paramDef = OLLAMA_PARAMETERS.find((p) => p.name === param.name);
+				if (paramDef && paramDef.type !== param.type) {
+					// Update the type when parameter is selected
+					newModel.parameters[index] = {
+						...param,
+						type: paramDef.type
+					};
+				}
+			}
+		});
+	}
 
 	const removeParameter = (index: number) => {
 		newModel.parameters = newModel.parameters.filter((_, i) => i !== index);
@@ -243,6 +361,21 @@
 		newModel.parameters = parseParameters(selectedModelInfo.parameters);
 		// We don't copy messages as they're typically not part of the model definition
 		newModel.messages = [];
+	};
+
+	// Update the createAndLoadModel function to handle timing properly
+	const createAndLoadModel = async () => {
+		const modelName = newModel.name; // Store the name before creation
+		const success = await createNewModel();
+
+		if (success && modelName) {
+			// Wait a brief moment for the model list to update
+			setTimeout(() => {
+				selectedModels = [modelName];
+			}, 100);
+		}
+
+		creatingModel = false; // Reset the creating state
 	};
 </script>
 
@@ -343,9 +476,9 @@
 					<!-- Model Info -->
 					{#if Object.keys(selectedModelInfo.model_info).length > 0}
 						<div>
-							<label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+							<h3 class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
 								{$i18n.t('Model Information')}
-							</label>
+							</h3>
 							<div class="space-y-4">
 								<!-- General Info -->
 								<div class="bg-gray-50 dark:bg-gray-900 rounded-lg p-3">
@@ -475,9 +608,9 @@
 					<!-- Capabilities -->
 					{#if selectedModelInfo.capabilities && selectedModelInfo.capabilities.length > 0}
 						<div>
-							<label class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+							<h3 class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
 								{$i18n.t('Capabilities')}
-							</label>
+							</h3>
 							<div class="flex flex-wrap gap-2">
 								{#each selectedModelInfo.capabilities as capability}
 									<span class="px-2 py-1 text-xs font-medium bg-primary/10 text-primary rounded">
@@ -562,23 +695,6 @@
 					/>
 				</div>
 
-				<!-- Template -->
-				<div>
-					<label
-						for="template"
-						class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-					>
-						{$i18n.t('Template')}
-					</label>
-					<textarea
-						id="template"
-						class="w-full h-48 p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 font-mono text-sm outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
-						bind:value={newModel.template}
-						placeholder={$i18n.t('Enter prompt template')}
-						disabled={creatingModel}
-					></textarea>
-				</div>
-
 				<!-- System Prompt -->
 				<div>
 					<label
@@ -596,17 +712,30 @@
 					></textarea>
 				</div>
 
+				<!-- Template -->
+				<div>
+					<label
+						for="template"
+						class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+					>
+						{$i18n.t('Template')}
+					</label>
+					<textarea
+						id="template"
+						class="w-full h-48 p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 font-mono text-sm outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+						bind:value={newModel.template}
+						placeholder={$i18n.t('Enter prompt template')}
+						disabled={creatingModel}
+					></textarea>
+				</div>
+
 				<!-- Parameters -->
 				<div>
 					<div class="flex justify-between items-center mb-1">
-						<label
-							for="parameters-section"
-							class="text-sm font-medium text-gray-700 dark:text-gray-300"
-						>
+						<h3 class="text-sm font-medium text-gray-700 dark:text-gray-300">
 							{$i18n.t('Parameters')}
-						</label>
+						</h3>
 						<button
-							id="parameters-section"
 							class="text-sm text-primary hover:text-primary-dark"
 							on:click={addParameter}
 							disabled={creatingModel}
@@ -616,35 +745,39 @@
 					</div>
 					{#each newModel.parameters as param, i}
 						<div class="flex gap-2 mb-2">
-							<input
-								type="text"
-								id="param-name-{i}"
-								class="flex-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-sm"
-								bind:value={param.name}
-								placeholder={$i18n.t('Name')}
-								disabled={creatingModel}
-								aria-label={$i18n.t('Parameter Name')}
-							/>
-							<input
-								type="text"
-								id="param-value-{i}"
-								class="flex-1 p-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-sm"
-								bind:value={param.value}
-								placeholder={$i18n.t('Value')}
-								disabled={creatingModel}
-								aria-label={$i18n.t('Parameter Value')}
-							/>
-							<select
-								id="param-type-{i}"
-								class="w-24 p-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-sm"
-								bind:value={param.type}
-								disabled={creatingModel}
-								aria-label={$i18n.t('Parameter Type')}
-							>
-								<option value="string">string</option>
-								<option value="int">int</option>
-								<option value="float">float</option>
-							</select>
+							<div class="flex-1">
+								<label for="param-name-{i}" class="sr-only">{$i18n.t('Parameter Name')}</label>
+								<select
+									id="param-name-{i}"
+									class="w-full p-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-sm"
+									bind:value={param.name}
+									disabled={creatingModel}
+								>
+									<option value="" disabled selected>{$i18n.t('Select parameter')}</option>
+									{#each OLLAMA_PARAMETERS as option}
+										<option value={option.name}>{option.name}</option>
+									{/each}
+								</select>
+								{#if param.name}
+									<div class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+										{OLLAMA_PARAMETERS.find((p) => p.name === param.name)?.description}
+										<span class="ml-1 font-mono">({param.type})</span>
+									</div>
+								{/if}
+							</div>
+							<div class="flex-1">
+								<label for="param-value-{i}" class="sr-only">{$i18n.t('Parameter Value')}</label>
+								<input
+									type="text"
+									id="param-value-{i}"
+									class="w-full p-2 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 text-sm"
+									bind:value={param.value}
+									placeholder={param.name
+										? OLLAMA_PARAMETERS.find((p) => p.name === param.name)?.default
+										: $i18n.t('Value')}
+									disabled={creatingModel}
+								/>
+							</div>
 							<button
 								class="p-2 text-red-500 hover:text-red-600"
 								on:click={() => removeParameter(i)}
@@ -724,7 +857,7 @@
 						</button>
 					{/if}
 					<button
-						class="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+						class="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 rounded-lg text-sm"
 						on:click={createNewModel}
 						disabled={creatingModel}
 					>
@@ -735,6 +868,20 @@
 							</div>
 						{:else}
 							{$i18n.t('Create Model')}
+						{/if}
+					</button>
+					<button
+						class="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+						on:click={createAndLoadModel}
+						disabled={creatingModel}
+					>
+						{#if creatingModel}
+							<div class="flex items-center">
+								<Spinner size="sm" class="mr-2" />
+								{$i18n.t('Creating and Loading...')}
+							</div>
+						{:else}
+							{$i18n.t('Create and Load Model')}
 						{/if}
 					</button>
 				</div>
