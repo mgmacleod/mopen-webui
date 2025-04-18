@@ -10,7 +10,7 @@
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import ModelSelector from '$lib/components/chat/ModelSelector.svelte';
-	import QuickTestModal from '$lib/components/lab/QuickTestModal.svelte';
+	import QuickTestModal from './QuickTest.svelte';
 
 	// Model creation form state
 	type Parameter = {

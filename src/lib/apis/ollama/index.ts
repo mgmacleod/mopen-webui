@@ -566,6 +566,75 @@ export const uploadModel = async (token: string, file: File, urlIdx: string | nu
 	return res;
 };
 
+export async function getRunningModels(token: string) {
+	let error = null;
+
+	const res = await fetch(`${OLLAMA_API_BASE_URL}/api/ps`, {
+		method: 'GET',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${token}`
+		}
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			console.log(err);
+			if ('detail' in err) {
+				error = err.detail;
+			} else {
+				error = 'Server connection failed';
+			}
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+}
+
+export async function stopModel(token: string, model: string) {
+	let error = null;
+
+	const res = await fetch(`${OLLAMA_API_BASE_URL}/api/generate`, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${token}`
+		},
+		body: JSON.stringify({
+			model,
+			prompt: '', // null prompt
+			keep_alive: 0 // this will effectively stop the model
+		})
+	})
+		.then(async (res) => {
+			if (!res.ok) throw await res.json();
+			return res.json();
+		})
+		.catch((err) => {
+			console.log(err);
+			if ('detail' in err) {
+				error = err.detail;
+			} else {
+				error = 'Server connection failed';
+			}
+			return null;
+		});
+
+	if (error) {
+		throw error;
+	}
+
+	return res;
+}
+
 // export const pullModel = async (token: string, tagName: string) => {
 // 	return await fetch(`${OLLAMA_API_BASE_URL}/pull`, {
 // 		method: 'POST',
