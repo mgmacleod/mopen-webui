@@ -34,8 +34,15 @@
 	let selectedModel: RunningModel | null = null;
 	let refreshInterval: ReturnType<typeof setInterval>;
 
-	// Calculate total VRAM usage
+	// Calculate total VRAM and RAM usage
 	$: totalVRAM = runningModels.reduce((sum, model) => sum + model.size_vram, 0);
+	$: totalRAM = runningModels.reduce((sum, model) => {
+		const ramUsage = Math.max(0, model.size - model.size_vram);
+		return sum + ramUsage;
+	}, 0);
+
+	// Check if any models are using RAM
+	$: hasRAMUsage = runningModels.some((model) => model.size > model.size_vram);
 
 	// Format bytes to human readable size (GB, MB, etc)
 	function formatSize(bytes: number): string {
@@ -47,6 +54,12 @@
 			unitIndex++;
 		}
 		return `${size.toFixed(1)} ${units[unitIndex]}`;
+	}
+
+	// Calculate percentage of total size
+	function formatPercentage(part: number, total: number): string {
+		if (total === 0) return '0%';
+		return `${Math.round((part / total) * 100)}%`;
 	}
 
 	// Format expiry time to human readable format or "Forever" if far in the future
@@ -112,8 +125,11 @@
 			{$i18n.t('Running Models')}
 		</h2>
 		{#if !loading && runningModels.length > 0}
-			<div class="text-sm text-gray-600 dark:text-gray-300">
-				{$i18n.t('Total VRAM')}: {formatSize(totalVRAM)}
+			<div class="text-sm text-gray-600 dark:text-gray-300 space-x-4">
+				<span>{$i18n.t('Total VRAM')}: {formatSize(totalVRAM)}</span>
+				{#if hasRAMUsage}
+					<span>{$i18n.t('Total RAM')}: {formatSize(totalRAM)}</span>
+				{/if}
 			</div>
 		{/if}
 	</div>
@@ -139,6 +155,9 @@
 							<th class="pb-2 font-medium">ID</th>
 							<th class="pb-2 font-medium">Size</th>
 							<th class="pb-2 font-medium">VRAM</th>
+							{#if hasRAMUsage}
+								<th class="pb-2 font-medium">RAM</th>
+							{/if}
 							<th class="pb-2 font-medium">Until</th>
 							<th class="pb-2 font-medium"></th>
 						</tr>
@@ -156,7 +175,20 @@
 								<td class="py-3 font-medium">{model.name}</td>
 								<td class="py-3 font-mono">{model.digest.slice(0, 12)}</td>
 								<td class="py-3">{formatSize(model.size)}</td>
-								<td class="py-3">{formatSize(model.size_vram)}</td>
+								<td class="py-3">
+									{formatSize(model.size_vram)}
+									<span class="text-gray-500 dark:text-gray-400 ml-1">
+										({formatPercentage(model.size_vram, model.size)})
+									</span>
+								</td>
+								{#if hasRAMUsage}
+									<td class="py-3">
+										{formatSize(Math.max(0, model.size - model.size_vram))}
+										<span class="text-gray-500 dark:text-gray-400 ml-1">
+											({formatPercentage(model.size - model.size_vram, model.size)})
+										</span>
+									</td>
+								{/if}
 								<td class="py-3">{formatExpiry(model.expires_at)}</td>
 								<td class="py-3">
 									<button
