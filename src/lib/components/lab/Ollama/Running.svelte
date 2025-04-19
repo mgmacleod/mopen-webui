@@ -34,6 +34,9 @@
 	let selectedModel: RunningModel | null = null;
 	let refreshInterval: ReturnType<typeof setInterval>;
 
+	// Calculate total VRAM usage
+	$: totalVRAM = runningModels.reduce((sum, model) => sum + model.size_vram, 0);
+
 	// Format bytes to human readable size (GB, MB, etc)
 	function formatSize(bytes: number): string {
 		const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -104,10 +107,15 @@
 </script>
 
 <div class="h-full p-4">
-	<div class="mb-4">
+	<div class="mb-4 flex justify-between items-center">
 		<h2 class="text-lg font-medium text-gray-800 dark:text-gray-200">
 			{$i18n.t('Running Models')}
 		</h2>
+		{#if !loading && runningModels.length > 0}
+			<div class="text-sm text-gray-600 dark:text-gray-300">
+				{$i18n.t('Total VRAM')}: {formatSize(totalVRAM)}
+			</div>
+		{/if}
 	</div>
 
 	{#if loading}
