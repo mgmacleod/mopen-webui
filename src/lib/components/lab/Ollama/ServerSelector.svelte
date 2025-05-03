@@ -4,6 +4,7 @@
 
 	export let servers: string[] = [];
 	export let selectedServer: string | null = null;
+	export let showServerNumber = true;
 
 	// Event dispatcher for server selection
 	import { createEventDispatcher } from 'svelte';
@@ -13,6 +14,13 @@
 		const select = event.target as HTMLSelectElement;
 		selectedServer = select.value;
 		dispatch('serverChange', { server: selectedServer });
+	}
+
+	// Format server label to show both number and URL if available
+	function formatServerLabel(server: string, index: number): string {
+		if (!showServerNumber) return server;
+		if (server.startsWith('Server ')) return server;
+		return `Server ${index + 1} (${server})`;
 	}
 </script>
 
@@ -27,8 +35,8 @@
 		value={selectedServer}
 	>
 		<option value="">{$i18n.t('All Servers')}</option>
-		{#each servers as server}
-			<option value={server}>{server}</option>
+		{#each servers as server, idx}
+			<option value={server}>{formatServerLabel(server, idx)}</option>
 		{/each}
 	</select>
 </div>

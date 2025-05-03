@@ -93,7 +93,7 @@
 					url
 				}));
 			});
-			// Update servers list
+			// Update servers list with formatted labels
 			servers = Object.keys(data);
 			// Keep selected model updated if it exists in the new list
 			if (selectedModel) {

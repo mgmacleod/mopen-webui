@@ -9,7 +9,7 @@
 	import { createModel, getOllamaModels, getOllamaModelInfo } from '$lib/apis/ollama';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
-	import ModelSelector from '$lib/components/chat/ModelSelector.svelte';
+	import Selector from '$lib/components/common/Selector.svelte';
 	import QuickTestModal from './QuickTest.svelte';
 	import ServerSelector from './ServerSelector.svelte';
 
@@ -28,11 +28,11 @@
 	let loading = true;
 	let selectedModelId = '';
 	let selectedModelInfo = null;
-	let selectedModels = ['']; // For the ModelSelector component
 	let creatingModel = false;
 	let showQuickTest = false;
 	let selectedServer: string | null = null;
 	let servers: string[] = [];
+	let selectedValue = '';
 
 	// New structured model creation state
 	let newModel = {
@@ -188,7 +188,9 @@
 			if (result && Array.isArray(result)) {
 				// Extract unique server URLs from model data
 				const serverIndices = [...new Set(result.flatMap((model) => model.urls || []))];
-				servers = serverIndices.map((idx) => `Server ${idx + 1}`);
+				const serverUrls = result[0]?.server_urls || [];
+				servers = serverIndices.map((idx) => serverUrls[idx] || `Server ${idx + 1}`);
+
 				// Update the models store with Ollama models
 				$models = result.map((model) => ({
 					id: model.model,
@@ -212,28 +214,34 @@
 			})
 		: $models;
 
-	// Watch for changes to selectedModels[0] and update selectedModelId
-	$: if (selectedModels[0] !== selectedModelId) {
-		selectedModelId = selectedModels[0];
-		if (selectedModelId) {
-			selectModel(selectedModelId);
-		} else {
-			selectedModelInfo = null;
-		}
+	// Watch for changes to selectedValue and update selectedModelId
+	$: if (selectedValue) {
+		console.log('Selected value changed:', selectedValue);
+		selectedModelId = selectedValue;
+		selectModel(selectedValue);
 	}
 
 	const selectModel = async (modelId: string) => {
+		console.log('selectModel called with:', modelId);
 		selectedModelId = modelId;
 		selectedModelInfo = { model_info: {} };
 
-		if (!modelId) return;
+		if (!modelId) {
+			console.log('No model ID provided');
+			return;
+		}
 
-		const model = $models.find((m) => m.name === modelId || m.id === modelId);
-		if (!model) return;
+		const model = $models.find((m) => m.model === modelId);
+		if (!model) {
+			console.log('Model not found:', modelId, 'in models:', $models);
+			return;
+		}
 
 		const serverIdx = model.server_idx;
 		try {
+			console.log('Fetching model info for:', modelId, 'from server:', serverIdx);
 			const info = await getOllamaModelInfo(localStorage.token, modelId, serverIdx);
+			console.log('Received model info:', info);
 			selectedModelInfo = {
 				...info,
 				server: servers[serverIdx]
@@ -472,10 +480,18 @@
 		const success = await createNewModel();
 
 		if (success && modelName) {
-			// Wait a brief moment for the model list to update
-			setTimeout(() => {
-				selectedModels = [modelName];
-			}, 100);
+			// Refresh the models list
+			await fetchModels();
+
+			// Wait a brief moment for the store to update
+			await new Promise((resolve) => setTimeout(resolve, 100));
+
+			// Set the selected value to trigger model loading
+			selectedValue = modelName;
+			selectedModelId = modelName;
+
+			// Trigger model selection to load details
+			await selectModel(modelName);
 		}
 
 		creatingModel = false; // Reset the creating state
@@ -495,7 +511,14 @@
 		<!-- Model Selector -->
 		<div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-2">
 			<div class="flex-1">
-				<ModelSelector bind:selectedModels showSetDefault={false} models={filteredModels} />
+				<Selector
+					bind:value={selectedValue}
+					items={filteredModels.map((model) => ({
+						value: model.model,
+						label: model.name || model.model
+					}))}
+					placeholder={$i18n.t('Select a model')}
+				/>
 			</div>
 			{#if selectedModelId}
 				<button
@@ -874,7 +897,7 @@
 						</label>
 						<select
 							id="server-select"
-							class="w-full p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+							class="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-3 py-1 text-sm"
 							bind:value={newModel.serverIdx}
 							disabled={creatingModel}
 						>
