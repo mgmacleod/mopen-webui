@@ -527,6 +527,7 @@
 	// Update the createAndLoadModel function to handle timing properly
 	const createAndLoadModel = async () => {
 		const modelName = newModel.name; // Store the name before creation
+		const serverIdx = newModel.serverIdx;
 		const success = await createNewModel();
 
 		if (success && modelName) {
@@ -536,12 +537,18 @@
 			// Wait a brief moment for the store to update
 			await new Promise((resolve) => setTimeout(resolve, 100));
 
+			// Get the full model name with prefix if applicable
+			let fullModelName = modelName;
+			if (serverIdx !== undefined && ollamaConfig?.OLLAMA_API_CONFIGS[serverIdx]?.prefix_id) {
+				fullModelName = `${ollamaConfig.OLLAMA_API_CONFIGS[serverIdx].prefix_id}.${modelName}`;
+			}
+
 			// Set the selected value to trigger model loading
-			selectedValue = modelName;
-			selectedModelId = modelName;
+			selectedValue = fullModelName;
+			selectedModelId = fullModelName;
 
 			// Trigger model selection to load details
-			await selectModel(modelName);
+			await selectModel(fullModelName);
 		}
 
 		creatingModel = false; // Reset the creating state
