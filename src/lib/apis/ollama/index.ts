@@ -627,7 +627,8 @@ export async function stopModel(token: string, model: string, urlIdx?: number) {
 		body: JSON.stringify({
 			model,
 			prompt: '', // null prompt
-			keep_alive: 0 // this will effectively stop the model
+			keep_alive: 0, // this will effectively stop the model
+			server_idx: urlIdx // Add server index to the request body as well
 		})
 	})
 		.then(async (res) => {

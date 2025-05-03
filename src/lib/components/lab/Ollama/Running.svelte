@@ -108,16 +108,22 @@
 
 	async function handleStopModel(model: RunningModel) {
 		try {
-			// Find the server index for the model
+			// Get the server index from the model's URL
 			const serverIndex = servers.indexOf(model.url);
 			if (serverIndex === -1) {
 				throw new Error('Server not found');
 			}
+
+			// Call the stopModel API with the server index
 			await stopModel(localStorage.token, model.model, serverIndex);
 			toast.success($i18n.t('Stopped model: {0}', { values: [model.name] }));
+
+			// Clear selected model if it was the one we just stopped
 			if (selectedModel?.digest === model.digest) {
 				selectedModel = null;
 			}
+
+			// Refresh the list of running models
 			await fetchRunningModels();
 		} catch (error) {
 			toast.error($i18n.t('Failed to stop model: {0}', { values: [error] }));
