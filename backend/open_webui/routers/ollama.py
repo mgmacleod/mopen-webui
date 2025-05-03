@@ -175,7 +175,7 @@ async def send_post_request(
                 detail = f"Ollama: {e}"
 
         raise HTTPException(
-            status_code=r.status if r else 500,
+            status_code=r.status_code if r else 500,
             detail=detail if detail else "Open WebUI: Server Connection Error",
         )
 
@@ -801,6 +801,15 @@ async def show_model_info(
         url_idx = random.choice(models[form_data.name]["urls"])
 
     url = request.app.state.config.OLLAMA_BASE_URLS[url_idx]
+    api_config = request.app.state.config.OLLAMA_API_CONFIGS.get(
+        str(url_idx),
+        request.app.state.config.OLLAMA_API_CONFIGS.get(url, {}),  # Legacy support
+    )
+
+    prefix_id = api_config.get("prefix_id", None)
+    if prefix_id:
+        form_data.name = form_data.name.replace(f"{prefix_id}.", "")
+
     key = get_api_key(url_idx, url, request.app.state.config.OLLAMA_API_CONFIGS)
 
     try:

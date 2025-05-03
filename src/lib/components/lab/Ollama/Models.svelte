@@ -6,7 +6,12 @@
 	import { models } from '$lib/stores';
 	import { splitStream } from '$lib/utils';
 	import { getModels } from '$lib/apis';
-	import { createModel, getOllamaModels, getOllamaModelInfo } from '$lib/apis/ollama';
+	import {
+		createModel,
+		getOllamaModels,
+		getOllamaModelInfo,
+		getOllamaConfig
+	} from '$lib/apis/ollama';
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Selector from '$lib/components/common/Selector.svelte';
@@ -33,6 +38,7 @@
 	let selectedServer: string | null = null;
 	let servers: string[] = [];
 	let selectedValue = '';
+	let ollamaConfig = null;
 
 	// New structured model creation state
 	let newModel = {
@@ -177,7 +183,28 @@
 		return params;
 	};
 
+	// Helper function to get unprefixed model name using server config
+	const getUnprefixedName = (modelId: string) => {
+		if (!ollamaConfig) return modelId;
+
+		// Find which server this model belongs to
+		const model = $models.find((m) => m.model === modelId);
+		if (!model) return modelId;
+
+		const serverIdx = model.server_idx;
+		const serverConfig = ollamaConfig.OLLAMA_API_CONFIGS[serverIdx];
+		if (!serverConfig?.prefix_id) return modelId;
+
+		const prefix = serverConfig.prefix_id + '.';
+		return modelId.startsWith(prefix) ? modelId.slice(prefix.length) : modelId;
+	};
+
 	onMount(async () => {
+		try {
+			ollamaConfig = await getOllamaConfig(localStorage.token);
+		} catch (error) {
+			console.error('Failed to fetch Ollama config:', error);
+		}
 		await fetchModels();
 	});
 
@@ -239,8 +266,10 @@
 
 		const serverIdx = model.server_idx;
 		try {
+			// Use the full model ID with prefix for API calls
 			console.log('Fetching model info for:', modelId, 'from server:', serverIdx);
 			const info = await getOllamaModelInfo(localStorage.token, modelId, serverIdx);
+
 			console.log('Received model info:', info);
 			selectedModelInfo = {
 				...info,
@@ -416,13 +445,20 @@
 	const useSelectedAsTemplate = () => {
 		if (!selectedModelInfo) return;
 
-		newModel.name = `${selectedModelId}-custom`;
-		newModel.from = selectedModelId;
+		const selectedModel = $models.find((m) => m.model === selectedModelId);
+		if (!selectedModel) return;
+
+		// Always use unprefixed names for new models
+		const rawModelName = getUnprefixedName(selectedModelId);
+		newModel.name = `${rawModelName}-custom`;
+		// Use unprefixed name for the base model
+		newModel.from = getUnprefixedName(selectedModelId);
 		newModel.template = selectedModelInfo.template || '';
 		newModel.system = selectedModelInfo.system || '';
 		newModel.parameters = parseParameters(selectedModelInfo.parameters);
-		// We don't copy messages as they're typically not part of the model definition
 		newModel.messages = [];
+		// Set the server index from the selected model
+		newModel.serverIdx = selectedModel.server_idx;
 	};
 
 	// Function to load selected model details into the form
@@ -431,10 +467,17 @@
 
 		console.log('Loading model details. Selected model info:', selectedModelInfo);
 
-		newModel.name = selectedModelId;
-		newModel.from = selectedModelInfo.details?.parent_model || '';
+		const selectedModel = $models.find((m) => m.model === selectedModelId);
+		if (!selectedModel) return;
+
+		// Always use unprefixed names
+		newModel.name = getUnprefixedName(selectedModelId);
+		newModel.from = selectedModelInfo.details?.parent_model
+			? getUnprefixedName(selectedModelInfo.details.parent_model)
+			: '';
 		newModel.template = selectedModelInfo.template || '';
 		newModel.system = selectedModelInfo.system || '';
+		newModel.serverIdx = selectedModel.server_idx;
 
 		// Convert and validate parameters
 		console.log('Raw parameters string:', selectedModelInfo.parameters);
@@ -526,8 +569,8 @@
 				<Selector
 					bind:value={selectedValue}
 					items={filteredModels.map((model) => ({
-						value: model.model,
-						label: model.name || model.model
+						value: model.model, // Keep the full ID with prefix
+						label: getUnprefixedName(model.name || model.model) // Show unprefixed name
 					}))}
 					placeholder={$i18n.t('Select a model')}
 				/>
@@ -573,20 +616,37 @@
 			{:else if selectedModelInfo}
 				<div class="space-y-4">
 					<!-- Model Name -->
-					<div>
-						<label
-							for="model-name"
-							class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1"
-						>
-							{$i18n.t('Model Name')}
-						</label>
-						<input
-							id="model-name"
-							type="text"
-							readonly
-							value={selectedModelId}
-							class="w-full text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg"
-						/>
+					<div class="space-y-2">
+						<div>
+							<label
+								for="model-name"
+								class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1"
+							>
+								{$i18n.t('Model ID')}
+							</label>
+							<input
+								id="model-name"
+								type="text"
+								readonly
+								value={selectedModelId}
+								class="w-full text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg"
+							/>
+						</div>
+						<div>
+							<label
+								for="model-name-unprefixed"
+								class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1"
+							>
+								{$i18n.t('Model Name')}
+							</label>
+							<input
+								id="model-name-unprefixed"
+								type="text"
+								readonly
+								value={getUnprefixedName(selectedModelId)}
+								class="w-full text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg"
+							/>
+						</div>
 					</div>
 
 					<!-- System Prompt -->
