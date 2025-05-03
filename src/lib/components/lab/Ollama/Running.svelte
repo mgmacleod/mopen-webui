@@ -5,6 +5,7 @@
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import { getRunningModels, stopModel } from '$lib/apis/ollama';
+	import ServerSelector from './ServerSelector.svelte';
 
 	type ModelDetails = {
 		parent_model: string;
@@ -33,6 +34,8 @@
 	let runningModels: RunningModel[] = [];
 	let selectedModel: RunningModel | null = null;
 	let refreshInterval: ReturnType<typeof setInterval>;
+	let selectedServer: string | null = null;
+	let servers: string[] = [];
 
 	// Calculate total VRAM and RAM usage
 	$: totalVRAM = runningModels.reduce((sum, model) => sum + model.size_vram, 0);
@@ -43,6 +46,11 @@
 
 	// Check if any models are using RAM
 	$: hasRAMUsage = runningModels.some((model) => model.size > model.size_vram);
+
+	// Filter models based on selected server
+	$: filteredModels = selectedServer
+		? runningModels.filter((model) => model.url === selectedServer)
+		: runningModels;
 
 	// Format bytes to human readable size (GB, MB, etc)
 	function formatSize(bytes: number): string {
@@ -85,6 +93,8 @@
 					url
 				}));
 			});
+			// Update servers list
+			servers = Object.keys(data);
 			// Keep selected model updated if it exists in the new list
 			if (selectedModel) {
 				selectedModel = runningModels.find((m) => m.digest === selectedModel?.digest) || null;
@@ -98,7 +108,12 @@
 
 	async function handleStopModel(model: RunningModel) {
 		try {
-			await stopModel(localStorage.token, model.model);
+			// Find the server index for the model
+			const serverIndex = servers.indexOf(model.url);
+			if (serverIndex === -1) {
+				throw new Error('Server not found');
+			}
+			await stopModel(localStorage.token, model.model, serverIndex);
 			toast.success($i18n.t('Stopped model: {0}', { values: [model.name] }));
 			if (selectedModel?.digest === model.digest) {
 				selectedModel = null;
@@ -134,13 +149,21 @@
 		{/if}
 	</div>
 
+	{#if servers.length > 1}
+		<ServerSelector {servers} bind:selectedServer on:serverChange={() => (selectedModel = null)} />
+	{/if}
+
 	{#if loading}
 		<div class="flex items-center justify-center h-64">
 			<Spinner size="lg" />
 		</div>
-	{:else if runningModels.length === 0}
+	{:else if filteredModels.length === 0}
 		<div class="flex items-center justify-center h-64 text-gray-500 dark:text-gray-400">
-			{$i18n.t('No models currently running')}
+			{#if selectedServer}
+				{$i18n.t('No models running on selected server')}
+			{:else}
+				{$i18n.t('No models currently running')}
+			{/if}
 		</div>
 	{:else}
 		<div class="space-y-4">
@@ -153,6 +176,9 @@
 						>
 							<th class="pb-2 font-medium">Name</th>
 							<th class="pb-2 font-medium">ID</th>
+							{#if !selectedServer}
+								<th class="pb-2 font-medium">Server</th>
+							{/if}
 							<th class="pb-2 font-medium">Size</th>
 							<th class="pb-2 font-medium">VRAM</th>
 							{#if hasRAMUsage}
@@ -163,7 +189,7 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each runningModels as model}
+						{#each filteredModels as model}
 							<tr
 								class="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-900 cursor-pointer {selectedModel?.digest ===
 								model.digest
@@ -174,6 +200,9 @@
 							>
 								<td class="py-3 font-medium">{model.name}</td>
 								<td class="py-3 font-mono">{model.digest.slice(0, 12)}</td>
+								{#if !selectedServer}
+									<td class="py-3">{model.url}</td>
+								{/if}
 								<td class="py-3">{formatSize(model.size)}</td>
 								<td class="py-3">
 									{formatSize(model.size_vram)}

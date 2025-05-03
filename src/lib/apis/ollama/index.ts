@@ -598,10 +598,15 @@ export async function getRunningModels(token: string) {
 	return res;
 }
 
-export async function stopModel(token: string, model: string) {
+export async function stopModel(token: string, model: string, urlIdx?: number) {
 	let error = null;
 
-	const res = await fetch(`${OLLAMA_API_BASE_URL}/api/generate`, {
+	const url =
+		urlIdx !== undefined
+			? `${OLLAMA_API_BASE_URL}/api/generate/${urlIdx}`
+			: `${OLLAMA_API_BASE_URL}/api/generate`;
+
+	const res = await fetch(url, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
