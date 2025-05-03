@@ -11,6 +11,7 @@
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import ModelSelector from '$lib/components/chat/ModelSelector.svelte';
 	import QuickTestModal from './QuickTest.svelte';
+	import ServerSelector from './ServerSelector.svelte';
 
 	// Model creation form state
 	type Parameter = {
@@ -25,12 +26,13 @@
 	};
 
 	let loading = true;
-	let ollamaModels = [];
 	let selectedModelId = '';
 	let selectedModelInfo = null;
 	let selectedModels = ['']; // For the ModelSelector component
 	let creatingModel = false;
 	let showQuickTest = false;
+	let selectedServer: string | null = null;
+	let servers: string[] = [];
 
 	// New structured model creation state
 	let newModel = {
@@ -39,7 +41,8 @@
 		template: '',
 		system: '',
 		parameters: [] as Parameter[],
-		messages: [] as Message[]
+		messages: [] as Message[],
+		serverIdx: undefined as number | undefined
 	};
 
 	// Add the parameters constant at the top of the script section
@@ -182,23 +185,32 @@
 		loading = true;
 		try {
 			const result = await getOllamaModels(localStorage.token);
-			if (result && result.models) {
-				ollamaModels = result.models;
+			if (result && Array.isArray(result)) {
+				// Extract unique server URLs from model data
+				const serverIndices = [...new Set(result.flatMap((model) => model.urls || []))];
+				servers = serverIndices.map((idx) => `Server ${idx + 1}`);
 				// Update the models store with Ollama models
-				models.set(
-					ollamaModels.map((model) => ({
-						id: model.model,
-						name: model.name,
-						owned_by: 'ollama',
-						...model
-					}))
-				);
+				$models = result.map((model) => ({
+					id: model.model,
+					name: model.name || model.model,
+					server_idx: model.urls?.[0], // Use first server as default
+					owned_by: 'ollama',
+					...model
+				}));
 			}
 		} catch (error) {
 			toast.error(`Failed to fetch models: ${error}`);
 		}
 		loading = false;
 	};
+
+	// Filter models based on selected server
+	$: filteredModels = selectedServer
+		? $models.filter((model) => {
+				const serverIdx = servers.indexOf(selectedServer);
+				return model.urls?.includes(serverIdx);
+			})
+		: $models;
 
 	// Watch for changes to selectedModels[0] and update selectedModelId
 	$: if (selectedModels[0] !== selectedModelId) {
@@ -210,26 +222,25 @@
 		}
 	}
 
-	const selectModel = async (modelId) => {
+	const selectModel = async (modelId: string) => {
+		selectedModelId = modelId;
+		selectedModelInfo = { model_info: {} };
+
 		if (!modelId) return;
 
+		const model = $models.find((m) => m.name === modelId || m.id === modelId);
+		if (!model) return;
+
+		const serverIdx = model.server_idx;
 		try {
-			const info = await getOllamaModelInfo(localStorage.token, modelId);
-			console.log('Raw model info from API:', info); // Debug log
+			const info = await getOllamaModelInfo(localStorage.token, modelId, serverIdx);
 			selectedModelInfo = {
-				system: info.system || '',
-				template: info.template || '',
-				parameters: info.parameters || '',
-				model_info: info.model_info || {},
-				capabilities: info.capabilities || [],
-				details: info.details || {},
-				modified_at: info.modified_at || null,
-				messages: info.messages || []
+				...info,
+				server: servers[serverIdx]
 			};
-			console.log('Processed model info:', selectedModelInfo); // Debug log
 		} catch (error) {
-			toast.error(`Failed to fetch model info: ${error}`);
-			selectedModelInfo = null;
+			console.error('Error fetching model info:', error);
+			selectedModelInfo = { model_info: {} };
 		}
 	};
 
@@ -278,7 +289,7 @@
 			// Log the request for debugging
 			console.log('Creating model with data:', modelData);
 
-			const res = await createModel(localStorage.token, modelData);
+			const res = await createModel(localStorage.token, modelData, newModel.serverIdx);
 
 			if (res && res.ok) {
 				const reader = res.body
@@ -332,10 +343,13 @@
 					template: '',
 					system: '',
 					parameters: [],
-					messages: []
+					messages: [],
+					serverIdx: undefined
 				};
 
-				toast.success($i18n.t('Model created successfully'));
+				const serverInfo =
+					newModel.serverIdx !== undefined ? ` on server ${servers[newModel.serverIdx]}` : '';
+				toast.success($i18n.t('Model created successfully{0}', { values: [serverInfo] }));
 				creatingModel = false; // Reset on success
 				return true;
 			}
@@ -471,10 +485,17 @@
 <div class="flex h-full w-full">
 	<!-- Left Panel - Model Selection and Details -->
 	<div class="w-1/2 border-r border-gray-200 dark:border-gray-800 flex flex-col overflow-hidden">
+		<!-- Server Selector -->
+		{#if servers.length > 1}
+			<div class="p-4 border-b border-gray-200 dark:border-gray-800">
+				<ServerSelector {servers} bind:selectedServer />
+			</div>
+		{/if}
+
 		<!-- Model Selector -->
 		<div class="p-4 border-b border-gray-200 dark:border-gray-800 flex items-center gap-2">
 			<div class="flex-1">
-				<ModelSelector bind:selectedModels showSetDefault={false} />
+				<ModelSelector bind:selectedModels showSetDefault={false} models={filteredModels} />
 			</div>
 			{#if selectedModelId}
 				<button
@@ -603,6 +624,12 @@
 										General
 									</div>
 									<div class="grid grid-cols-2 gap-2 text-sm">
+										{#if selectedModelInfo.server}
+											<div class="col-span-2">
+												<span class="text-gray-500 dark:text-gray-400">Server:</span>
+												<span class="ml-2 font-mono">{selectedModelInfo.server}</span>
+											</div>
+										{/if}
 										{#if selectedModelInfo.model_info['general.architecture']}
 											<div class="col-span-2">
 												<span class="text-gray-500 dark:text-gray-400">Architecture:</span>
@@ -836,6 +863,29 @@
 		<div class="flex-1 overflow-y-auto p-4">
 			<!-- New Model Form -->
 			<div class="space-y-4">
+				<!-- Server Selection -->
+				{#if servers.length > 1}
+					<div>
+						<label
+							for="server-select"
+							class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+						>
+							{$i18n.t('Target Server')}
+						</label>
+						<select
+							id="server-select"
+							class="w-full p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800 outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+							bind:value={newModel.serverIdx}
+							disabled={creatingModel}
+						>
+							<option value={undefined}>{$i18n.t('Default Server')}</option>
+							{#each servers as server, idx}
+								<option value={idx}>{server}</option>
+							{/each}
+						</select>
+					</div>
+				{/if}
+
 				<!-- Model Name -->
 				<div>
 					<label

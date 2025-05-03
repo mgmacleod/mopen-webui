@@ -247,10 +247,19 @@ export const getOllamaModels = async (token: string = '', urlIdx: null | number 
 		});
 };
 
-export const getOllamaModelInfo = async (token: string = '', modelName: string) => {
+export const getOllamaModelInfo = async (
+	token: string = '',
+	modelName: string,
+	urlIdx?: number
+) => {
 	let error = null;
 
-	const res = await fetch(`${OLLAMA_API_BASE_URL}/api/show`, {
+	const url =
+		urlIdx !== undefined
+			? `${OLLAMA_API_BASE_URL}/api/show/${urlIdx}`
+			: `${OLLAMA_API_BASE_URL}/api/show`;
+
+	const res = await fetch(url, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -399,21 +408,23 @@ export const generateChatCompletion = async (token: string = '', body: object) =
 	return [res, controller];
 };
 
-export const createModel = async (token: string, payload: object, urlIdx: string | null = null) => {
+export const createModel = async (token: string, payload: object, urlIdx?: number) => {
 	let error = null;
 
-	const res = await fetch(
-		`${OLLAMA_API_BASE_URL}/api/create${urlIdx !== null ? `/${urlIdx}` : ''}`,
-		{
-			method: 'POST',
-			headers: {
-				Accept: 'application/json',
-				'Content-Type': 'application/json',
-				Authorization: `Bearer ${token}`
-			},
-			body: JSON.stringify(payload)
-		}
-	).catch((err) => {
+	const url =
+		urlIdx !== undefined
+			? `${OLLAMA_API_BASE_URL}/api/create/${urlIdx}`
+			: `${OLLAMA_API_BASE_URL}/api/create`;
+
+	const res = await fetch(url, {
+		method: 'POST',
+		headers: {
+			Accept: 'application/json',
+			'Content-Type': 'application/json',
+			Authorization: `Bearer ${token}`
+		},
+		body: JSON.stringify(payload)
+	}).catch((err) => {
 		error = err;
 		return null;
 	});

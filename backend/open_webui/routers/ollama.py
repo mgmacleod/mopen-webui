@@ -784,8 +784,9 @@ async def delete_model(
 
 
 @router.post("/api/show")
+@router.post("/api/show/{url_idx}")
 async def show_model_info(
-    request: Request, form_data: ModelNameForm, user=Depends(get_verified_user)
+    request: Request, form_data: ModelNameForm, url_idx: Optional[int] = None, user=Depends(get_verified_user)
 ):
     await get_all_models(request, user=user)
     models = request.app.state.OLLAMA_MODELS
@@ -796,7 +797,8 @@ async def show_model_info(
             detail=ERROR_MESSAGES.MODEL_NOT_FOUND(form_data.name),
         )
 
-    url_idx = random.choice(models[form_data.name]["urls"])
+    if url_idx is None:
+        url_idx = random.choice(models[form_data.name]["urls"])
 
     url = request.app.state.config.OLLAMA_BASE_URLS[url_idx]
     key = get_api_key(url_idx, url, request.app.state.config.OLLAMA_API_CONFIGS)
