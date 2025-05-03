@@ -199,6 +199,14 @@
 		return modelId.startsWith(prefix) ? modelId.slice(prefix.length) : modelId;
 	};
 
+	// Helper function to get server display name
+	const getServerDisplayName = (idx: number) => {
+		if (!ollamaConfig?.OLLAMA_API_CONFIGS) return `Server ${idx + 1}`;
+		const config = ollamaConfig.OLLAMA_API_CONFIGS[idx];
+		if (!config) return `Server ${idx + 1}`;
+		return config.prefix_id || `Server ${idx + 1}`;
+	};
+
 	onMount(async () => {
 		try {
 			ollamaConfig = await getOllamaConfig(localStorage.token);
@@ -215,8 +223,7 @@
 			if (result && Array.isArray(result)) {
 				// Extract unique server URLs from model data
 				const serverIndices = [...new Set(result.flatMap((model) => model.urls || []))];
-				const serverUrls = result[0]?.server_urls || [];
-				servers = serverIndices.map((idx) => serverUrls[idx] || `Server ${idx + 1}`);
+				servers = serverIndices.map((idx) => getServerDisplayName(idx));
 
 				// Update the models store with Ollama models
 				$models = result.map((model) => ({

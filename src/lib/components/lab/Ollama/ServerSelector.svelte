@@ -20,7 +20,13 @@
 	function formatServerLabel(server: string, index: number): string {
 		if (!showServerNumber) return server;
 		if (server.startsWith('Server ')) return server;
-		return `Server ${index + 1} (${server})`;
+		// Extract prefix from the format "prefix (Server #)"
+		const match = server.match(/^([^(]+)/);
+		if (match) {
+			const prefix = match[1].trim();
+			return `${prefix} (Server ${index + 1})`;
+		}
+		return server;
 	}
 </script>
 

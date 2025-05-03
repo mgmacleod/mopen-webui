@@ -4,7 +4,7 @@
 	const i18n = getContext('i18n');
 
 	import Spinner from '$lib/components/common/Spinner.svelte';
-	import { getRunningModels, stopModel } from '$lib/apis/ollama';
+	import { getRunningModels, stopModel, getOllamaConfig } from '$lib/apis/ollama';
 	import ServerSelector from './ServerSelector.svelte';
 
 	type ModelDetails = {
@@ -36,6 +36,17 @@
 	let refreshInterval: ReturnType<typeof setInterval>;
 	let selectedServer: string | null = null;
 	let servers: string[] = [];
+	let ollamaConfig = null;
+	let serverUrlToPrefix = new Map<string, string>();
+	let urlToServerIndex = new Map<string, number>();
+
+	// Helper function to get server display name
+	const getServerDisplayName = (url: string, idx: number) => {
+		if (!ollamaConfig?.OLLAMA_API_CONFIGS) return `Server ${idx + 1}`;
+		const config = ollamaConfig.OLLAMA_API_CONFIGS[idx];
+		if (!config) return `Server ${idx + 1}`;
+		return config.prefix_id || `Server ${idx + 1}`;
+	};
 
 	// Calculate total VRAM and RAM usage
 	$: totalVRAM = filteredModels.reduce((sum, model) => sum + model.size_vram, 0);
@@ -49,7 +60,7 @@
 
 	// Filter models based on selected server
 	$: filteredModels = selectedServer
-		? runningModels.filter((model) => model.url === selectedServer)
+		? runningModels.filter((model) => model.url === serverUrlToPrefix.get(selectedServer))
 		: runningModels;
 
 	// Format bytes to human readable size (GB, MB, etc)
@@ -84,6 +95,10 @@
 
 	async function fetchRunningModels() {
 		try {
+			if (!ollamaConfig) {
+				ollamaConfig = await getOllamaConfig(localStorage.token);
+			}
+
 			const data = await getRunningModels(localStorage.token);
 			// Transform the response into a flat array of running models
 			runningModels = Object.entries(data).flatMap(([url, response]) => {
@@ -93,8 +108,18 @@
 					url
 				}));
 			});
-			// Update servers list with formatted labels
-			servers = Object.keys(data);
+
+			// Update servers list with prefixes and build URL mapping
+			const urls = Object.keys(data);
+			urlToServerIndex.clear();
+			serverUrlToPrefix.clear();
+			servers = urls.map((url, idx) => {
+				const displayName = getServerDisplayName(url, idx);
+				serverUrlToPrefix.set(displayName, url);
+				urlToServerIndex.set(url, idx);
+				return displayName;
+			});
+
 			// Keep selected model updated if it exists in the new list
 			if (selectedModel) {
 				selectedModel = runningModels.find((m) => m.digest === selectedModel?.digest) || null;
@@ -108,9 +133,9 @@
 
 	async function handleStopModel(model: RunningModel) {
 		try {
-			// Get the server index from the model's URL
-			const serverIndex = servers.indexOf(model.url);
-			if (serverIndex === -1) {
+			// Get the server index from our URL mapping
+			const serverIndex = urlToServerIndex.get(model.url);
+			if (serverIndex === undefined) {
 				throw new Error('Server not found');
 			}
 
@@ -207,7 +232,9 @@
 								<td class="py-3 font-medium">{model.name}</td>
 								<td class="py-3 font-mono">{model.digest.slice(0, 12)}</td>
 								{#if !selectedServer}
-									<td class="py-3">{model.url}</td>
+									<td class="py-3">
+										{servers[urlToServerIndex.get(model.url) || 0]}
+									</td>
 								{/if}
 								<td class="py-3">{formatSize(model.size)}</td>
 								<td class="py-3">
@@ -277,7 +304,15 @@
 										<span class="text-sm text-gray-500 dark:text-gray-400"
 											>{$i18n.t('Server')}:</span
 										>
-										<span class="ml-2">{selectedModel.url}</span>
+										<span class="ml-2"
+											>{getServerDisplayName(
+												selectedModel.url,
+												Object.keys(ollamaConfig?.OLLAMA_API_CONFIGS || {}).findIndex(
+													(_, idx) =>
+														ollamaConfig?.OLLAMA_API_CONFIGS[idx]?.url === selectedModel.url
+												)
+											)}</span
+										>
 									</div>
 									<div>
 										<span class="text-sm text-gray-500 dark:text-gray-400"
