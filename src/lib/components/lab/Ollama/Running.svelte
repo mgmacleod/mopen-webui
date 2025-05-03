@@ -38,14 +38,14 @@
 	let servers: string[] = [];
 
 	// Calculate total VRAM and RAM usage
-	$: totalVRAM = runningModels.reduce((sum, model) => sum + model.size_vram, 0);
-	$: totalRAM = runningModels.reduce((sum, model) => {
+	$: totalVRAM = filteredModels.reduce((sum, model) => sum + model.size_vram, 0);
+	$: totalRAM = filteredModels.reduce((sum, model) => {
 		const ramUsage = Math.max(0, model.size - model.size_vram);
 		return sum + ramUsage;
 	}, 0);
 
 	// Check if any models are using RAM
-	$: hasRAMUsage = runningModels.some((model) => model.size > model.size_vram);
+	$: hasRAMUsage = filteredModels.some((model) => model.size > model.size_vram);
 
 	// Filter models based on selected server
 	$: filteredModels = selectedServer
