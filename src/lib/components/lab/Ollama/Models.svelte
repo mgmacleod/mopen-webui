@@ -626,21 +626,6 @@
 					<div class="space-y-2">
 						<div>
 							<label
-								for="model-name"
-								class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1"
-							>
-								{$i18n.t('Model ID')}
-							</label>
-							<input
-								id="model-name"
-								type="text"
-								readonly
-								value={selectedModelId}
-								class="w-full text-sm font-mono bg-gray-50 dark:bg-gray-900 p-2 rounded-lg"
-							/>
-						</div>
-						<div>
-							<label
 								for="model-name-unprefixed"
 								class="block text-sm font-medium text-gray-500 dark:text-gray-400 mb-1"
 							>
