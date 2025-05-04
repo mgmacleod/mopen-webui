@@ -221,9 +221,14 @@
 		try {
 			const result = await getOllamaModels(localStorage.token);
 			if (result && Array.isArray(result)) {
-				// Extract unique server URLs from model data
-				const serverIndices = [...new Set(result.flatMap((model) => model.urls || []))];
-				servers = serverIndices.map((idx) => getServerDisplayName(idx));
+				// Update servers list from config
+				if (ollamaConfig?.OLLAMA_API_CONFIGS) {
+					// Convert object to array if necessary
+					const configArray = Array.isArray(ollamaConfig.OLLAMA_API_CONFIGS)
+						? ollamaConfig.OLLAMA_API_CONFIGS
+						: Object.values(ollamaConfig.OLLAMA_API_CONFIGS);
+					servers = configArray.map((_, idx) => getServerDisplayName(idx));
+				}
 
 				// Update the models store with Ollama models
 				$models = result.map((model) => ({
