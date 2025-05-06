@@ -1,5 +1,10 @@
 # Open WebUI 👋
 
+## Fork Information
+
+> [!NOTE]
+> This is a fork of Open WebUI, based on v0.6.5 under the BSD-3 license. This fork deliberately maintains compatibility with the BSD-3 licensed version and does not incorporate code from later versions. I'll wait and see how things shape up with the parent repo, but for now I'll stick with a v0.6.5 base.
+
 ![GitHub stars](https://img.shields.io/github/stars/open-webui/open-webui?style=social)
 ![GitHub forks](https://img.shields.io/github/forks/open-webui/open-webui?style=social)
 ![GitHub watchers](https://img.shields.io/github/watchers/open-webui/open-webui?style=social)
