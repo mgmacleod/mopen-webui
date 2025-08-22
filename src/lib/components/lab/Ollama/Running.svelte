@@ -24,6 +24,7 @@
 		digest: string;
 		details: ModelDetails;
 		expires_at: string;
+		context_length: number;
 	};
 
 	type RunningModel = RunningModelResponse & {
@@ -206,7 +207,7 @@
 							class="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800"
 						>
 							<th class="pb-2 font-medium">Name</th>
-							<th class="pb-2 font-medium">ID</th>
+							<th class="pb-2 font-medium">Context Length</th>
 							{#if !selectedServer}
 								<th class="pb-2 font-medium">Server</th>
 							{/if}
@@ -230,7 +231,7 @@
 									(selectedModel = selectedModel?.digest === model.digest ? null : model)}
 							>
 								<td class="py-3 font-medium">{model.name}</td>
-								<td class="py-3 font-mono">{model.digest.slice(0, 12)}</td>
+								<td class="py-3 font-mono">{model.context_length}</td>
 								{#if !selectedServer}
 									<td class="py-3">
 										{servers[urlToServerIndex.get(model.url) || 0]}
@@ -289,7 +290,9 @@
 								</h4>
 								<div class="space-y-2">
 									<div>
-										<span class="text-sm text-gray-500 dark:text-gray-400">{$i18n.t('ID')}:</span>
+										<span class="text-sm text-gray-500 dark:text-gray-400"
+											>{$i18n.t('ID')}:</span
+										>
 										<span class="ml-2 font-mono">{selectedModel.digest}</span>
 									</div>
 									<div>
@@ -359,6 +362,12 @@
 											>{$i18n.t('Quantization')}:</span
 										>
 										<span class="ml-2">{selectedModel.details.quantization_level}</span>
+									</div>
+									<div>
+										<span class="text-sm text-gray-500 dark:text-gray-400"
+											>{$i18n.t('Context Length')}:</span
+										>
+										<span class="ml-2">{selectedModel.context_length}</span>
 									</div>
 								</div>
 							</div>
